@@ -16,6 +16,22 @@ test('production verification helper enables hardened self-test settings', () =>
   assert.equal(env.HELMR_CONFIG_DIR, join('C:/helmr', '.helmr-production-check', 'config'));
 });
 
+test('production verification helper overrides short token leaked from host shell', () => {
+  const env = buildProductionVerificationEnv({
+    HELMR_API_TOKEN: 'too-short',
+  }, 'C:/helmr');
+
+  assert.equal(env.HELMR_API_TOKEN, '0123456789abcdef0123456789abcdef');
+});
+
+test('production verification helper overrides wildcard origin leaked from host shell', () => {
+  const env = buildProductionVerificationEnv({
+    HELMR_ALLOWED_ORIGINS: '*',
+  }, 'C:/helmr');
+
+  assert.equal(env.HELMR_ALLOWED_ORIGINS, 'http://localhost:4000');
+});
+
 test('production verification helper preserves explicit hardened settings', () => {
   const env = buildProductionVerificationEnv({
     HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
