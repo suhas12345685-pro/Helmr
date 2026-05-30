@@ -28,6 +28,48 @@ export type HelmrStoreJob = HelmrJob & {
   workspacePath?: string;
 };
 
+export type ChannelStatus = 'not_configured' | 'configured' | 'active' | 'failed' | 'disabled';
+export type ChannelPairingState = 'unpaired' | 'pending' | 'paired';
+
+export interface ChannelStateRecord {
+  name: string;
+  status: ChannelStatus;
+  pairingState: ChannelPairingState;
+  config?: Record<string, unknown>;
+  adminId?: string;
+  pairedAt?: string;
+}
+
+interface ChannelRow {
+  name: string;
+  status: ChannelStatus;
+  pairing_state: ChannelPairingState;
+  config: string | null;
+  admin_id: string | null;
+  paired_at: string | null;
+  updated_at: string;
+}
+
+function rowToChannel(row: ChannelRow): ChannelStateRecord {
+  return {
+    name: row.name,
+    status: row.status,
+    pairingState: row.pairing_state,
+    config: row.config ? safeJson(row.config) : undefined,
+    adminId: row.admin_id ?? undefined,
+    pairedAt: row.paired_at ?? undefined,
+  };
+}
+
+function safeJson(value: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(value);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class HelmrSQLiteStore {
   private db: Client;
 
@@ -105,6 +147,22 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
+
+      CREATE TABLE IF NOT EXISTS channels (
+        name TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'not_configured',
+        pairing_state TEXT NOT NULL DEFAULT 'unpaired',
+        config TEXT,
+        admin_id TEXT,
+        paired_at TEXT,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS system_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
 
     await this.recordSchemaVersion(CURRENT_SCHEMA_VERSION);
@@ -331,6 +389,60 @@ export class HelmrSQLiteStore {
     const row = rs.rows[0];
     if (!row) return undefined;
     return { decision: (row['decision'] as 'approved' | 'denied' | null) ?? null };
+  }
+
+  async upsertChannel(record: ChannelStateRecord): Promise<void> {
+    await this.db.execute({
+      sql: `INSERT INTO channels (name,status,pairing_state,config,admin_id,paired_at,updated_at)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(name) DO UPDATE SET
+              status=excluded.status,
+              pairing_state=excluded.pairing_state,
+              config=excluded.config,
+              admin_id=excluded.admin_id,
+              paired_at=excluded.paired_at,
+              updated_at=excluded.updated_at`,
+      args: [
+        record.name,
+        record.status,
+        record.pairingState,
+        record.config ? JSON.stringify(record.config) : null,
+        record.adminId ?? null,
+        record.pairedAt ?? null,
+        new Date().toISOString(),
+      ],
+    });
+  }
+
+  async getChannel(name: string): Promise<ChannelStateRecord | undefined> {
+    const rs = await this.db.execute({ sql: 'SELECT * FROM channels WHERE name=?', args: [name] });
+    const row = rs.rows[0];
+    if (!row) return undefined;
+    return rowToChannel(row as unknown as ChannelRow);
+  }
+
+  async listChannels(): Promise<ChannelStateRecord[]> {
+    const rs = await this.db.execute('SELECT * FROM channels ORDER BY name ASC');
+    return rs.rows.map((r) => rowToChannel(r as unknown as ChannelRow));
+  }
+
+  async setSystemState(key: string, value: unknown): Promise<void> {
+    await this.db.execute({
+      sql: `INSERT INTO system_state (key,value,updated_at) VALUES (?,?,?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+      args: [key, JSON.stringify(value), new Date().toISOString()],
+    });
+  }
+
+  async getSystemState<T = unknown>(key: string): Promise<T | undefined> {
+    const rs = await this.db.execute({ sql: 'SELECT value FROM system_state WHERE key=?', args: [key] });
+    const row = rs.rows[0];
+    if (!row) return undefined;
+    try {
+      return JSON.parse(row['value'] as string) as T;
+    } catch {
+      return undefined;
+    }
   }
 
   async saveResult(result: ToolResult): Promise<void> {

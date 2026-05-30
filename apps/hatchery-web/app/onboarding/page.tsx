@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { configureProvider, runSelfTest, API_BASE } from '@/lib/api';
+import { configureProvider, runSelfTest, completeOnboarding, fetchOnboardingState, API_BASE } from '@/lib/api';
 
 type CheckStatus = 'pending' | 'pass' | 'fail' | 'checking';
 
@@ -76,6 +76,20 @@ export default function OnboardingPage() {
   const [providerError, setProviderError] = useState<string | null>(null);
   const [selfTestResults, setSelfTestResults] = useState<Record<string, unknown> | null>(null);
   const [selfTestRunning, setSelfTestRunning] = useState(false);
+  const [deploymentProfile, setDeploymentProfile] = useState<'local' | 'wsl2' | 'vps' | 'container'>('local');
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchOnboardingState()
+      .then((state) => {
+        if (state.workspacePath) setWorkspacePath(state.workspacePath);
+        if (state.deploymentProfile) setDeploymentProfile(state.deploymentProfile);
+      })
+      .catch(() => {
+        // gateway might not be up yet; ignore
+      });
+  }, []);
 
   useEffect(() => {
     if (step === 1) {
@@ -132,6 +146,19 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleFinish() {
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      await completeOnboarding(workspacePath, deploymentProfile);
+      router.push('/');
+    } catch (err) {
+      setCompleteError(err instanceof Error ? err.message : 'Failed to save onboarding state');
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   const allChecksPassed = checks.every((c) => c.status === 'pass' || c.status === 'fail');
 
   return (
@@ -164,8 +191,8 @@ export default function OnboardingPage() {
 
         {step === 2 && (
           <div>
-            <h2 className="text-lg font-semibold text-gray-100 mb-4">Workspace Path</h2>
-            <p className="text-sm text-gray-400 mb-4">
+            <h2 className="text-lg font-semibold text-gray-100 mb-4">Workspace &amp; Profile</h2>
+            <p className="text-sm text-gray-400 mb-3">
               Where should Helmr store agent data, memory, and job outputs?
             </p>
             <input
@@ -174,6 +201,22 @@ export default function OnboardingPage() {
               onChange={(e) => setWorkspacePath(e.target.value)}
               className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-sm font-mono text-gray-100 focus:outline-none focus:border-indigo-500"
             />
+            <p className="text-sm text-gray-400 mt-4 mb-2">Deployment profile</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['local', 'wsl2', 'vps', 'container'] as const).map((profile) => (
+                <button
+                  key={profile}
+                  onClick={() => setDeploymentProfile(profile)}
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    deploymentProfile === profile
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
+                  }`}
+                >
+                  {profile}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setStep(1)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
               <button onClick={() => setStep(3)} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Continue</button>
@@ -281,11 +324,13 @@ export default function OnboardingPage() {
             <p className="text-gray-400 text-sm mb-8">
               Helmr is configured and ready to orchestrate your agents.
             </p>
+            {completeError && <p className="text-xs text-red-400 mb-3">{completeError}</p>}
             <button
-              onClick={() => router.push('/')}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+              onClick={handleFinish}
+              disabled={completing}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-6 rounded-lg transition-colors"
             >
-              Start using Helmr
+              {completing ? 'Saving…' : 'Start using Helmr'}
             </button>
           </div>
         )}

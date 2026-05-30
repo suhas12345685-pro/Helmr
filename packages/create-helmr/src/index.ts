@@ -111,8 +111,8 @@ async function main(): Promise<void> {
 
   banner('Helmr is ready!');
   console.log('Next steps:\n');
-  console.log('  1. Start the daemon:');
-  console.log('       helmr daemon start\n');
+  console.log('  1. Start the daemons:');
+  console.log('       helmr start\n');
   console.log('  2. Open the Hatchery WebUI:');
   console.log('       helmr hatchery\n');
   console.log('  3. Run your first job:');
@@ -120,18 +120,35 @@ async function main(): Promise<void> {
   console.log('  4. Run self-test:');
   console.log('       helmr self-test\n');
 
-  const startNow = await prompt('Start the daemon now? [Y/n]: ');
+  const startNow = await prompt('Start the daemons now? [Y/n]: ');
   if (startNow === '' || startNow.toLowerCase() === 'y') {
-    console.log('\nStarting Helmr daemon...');
-    const daemon = spawn('helmr', ['daemon', 'start'], {
+    console.log('\nStarting Helmr daemons...');
+    const daemon = spawn('helmr', ['start'], {
       detached: true,
       stdio: 'ignore',
       env: { ...process.env },
     });
     daemon.unref();
-    console.log('Daemon started in background.');
+    console.log('Daemons started in background.');
     console.log('  Gateway  -> http://localhost:3999');
     console.log('  Hatchery -> http://localhost:4000\n');
+
+    const openNow = await prompt('Open Hatchery in your browser now? [Y/n]: ');
+    if (openNow === '' || openNow.toLowerCase() === 'y') {
+      const url = 'http://localhost:4000';
+      const cmd =
+        process.platform === 'win32' ? `start "" "${url}"` :
+        process.platform === 'darwin' ? `open "${url}"` :
+        `xdg-open "${url}"`;
+      try {
+        spawn(cmd, { shell: true, detached: true, stdio: 'ignore' }).unref();
+        console.log(`Opening ${url}...`);
+      } catch {
+        console.log(`Visit ${url} in your browser to continue onboarding.`);
+      }
+    } else {
+      console.log('Visit http://localhost:4000 in your browser to continue onboarding.');
+    }
   }
 }
 

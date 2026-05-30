@@ -234,6 +234,68 @@ export async function configureChannel(
   });
 }
 
+export interface PairingTicket {
+  name: string;
+  code: string;
+  expiresAt: string;
+  adminId: string;
+  pairingState: 'pending';
+}
+
+export async function startChannelPairing(
+  name: string,
+  adminId: string,
+): Promise<PairingTicket> {
+  return apiFetch<PairingTicket>(`/api/channels/${name}/start-pairing`, {
+    method: 'POST',
+    body: JSON.stringify({ adminId }),
+  });
+}
+
+export async function completeChannelPairing(
+  name: string,
+  code: string,
+): Promise<{ name: string; pairingState: 'paired'; adminId: string; pairedAt: string }> {
+  return apiFetch(`/api/channels/${name}/complete-pairing`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function testProvider(
+  name: string,
+  apiKey?: string,
+): Promise<{ name: string; ok: boolean; message?: string; redacted?: string }> {
+  return apiFetch(`/api/providers/${name}/test`, {
+    method: 'POST',
+    body: JSON.stringify(apiKey ? { apiKey } : {}),
+    allowErrorStatus: true,
+  });
+}
+
+export interface OnboardingState {
+  complete: boolean;
+  workspacePath?: string;
+  deploymentProfile?: 'local' | 'wsl2' | 'vps' | 'container';
+  completedAt?: string;
+  providersConfigured?: string[];
+  hasAnyProvider?: boolean;
+}
+
+export async function fetchOnboardingState(): Promise<OnboardingState> {
+  return apiFetch<OnboardingState>('/api/onboarding/state');
+}
+
+export async function completeOnboarding(
+  workspacePath?: string,
+  deploymentProfile?: OnboardingState['deploymentProfile'],
+): Promise<OnboardingState> {
+  return apiFetch<OnboardingState>('/api/onboarding/complete', {
+    method: 'POST',
+    body: JSON.stringify({ workspacePath, deploymentProfile }),
+  });
+}
+
 export async function fetchSystemStatus(): Promise<SystemStatus> {
   const data = await apiFetch<unknown>('/api/status');
   if (isRecord(data)) {

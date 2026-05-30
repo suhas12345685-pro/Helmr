@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { HelmrSQLiteStore, type HelmrStoreJob } from '../../memory/src/sqlite-store.js';
+import { HelmrSQLiteStore, type HelmrStoreJob, type ChannelStateRecord } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING, saveRoutingConfig, type ModelRoute, type TaskKind } from '../../router/src/routing-config.js';
 import { ConfigFileManager } from '../../config/src/config-files.js';
+import { SecretStore } from '../../config/src/secret-store.js';
+import { PairingStore } from '../../channels/src/pairing.js';
 import type { HelmrPlan } from '../../shared/src/index.js';
 import { evaluateApiAuth } from '../../shared/src/http-auth.js';
 import { evaluateContentLength, getMaxBodyBytes } from '../../shared/src/http-limits.js';
@@ -32,8 +33,71 @@ const PROVIDERS = [
   { name: 'google', label: 'Google Gemini', envKey: 'GOOGLE_GENERATIVE_AI_API_KEY', description: 'Gemini models' },
   { name: 'groq', label: 'Groq', envKey: 'GROQ_API_KEY', description: 'Fast hosted open models' },
   { name: 'xai', label: 'xAI', envKey: 'XAI_API_KEY', description: 'Grok models' },
+  { name: 'perplexity', label: 'Perplexity', envKey: 'PERPLEXITY_API_KEY', description: 'Search-tuned models' },
   { name: 'ollama', label: 'Ollama', envKey: '', description: 'Local models' },
 ] as const;
+
+const CHANNEL_CATALOG = [
+  { name: 'webchat', label: 'WebChat', requiresPairing: false },
+  { name: 'telegram', label: 'Telegram', requiresPairing: true },
+  { name: 'discord', label: 'Discord', requiresPairing: true },
+  { name: 'slack', label: 'Slack', requiresPairing: true },
+  { name: 'whatsapp', label: 'WhatsApp', requiresPairing: true },
+  { name: 'signal', label: 'Signal', requiresPairing: true },
+  { name: 'teams', label: 'Microsoft Teams', requiresPairing: true },
+  { name: 'google-chat', label: 'Google Chat', requiresPairing: true },
+] as const;
+
+type ChannelCatalogEntry = (typeof CHANNEL_CATALOG)[number];
+
+function channelEntry(name: string): ChannelCatalogEntry | undefined {
+  return CHANNEL_CATALOG.find((entry) => entry.name === name);
+}
+
+function redactSecret(value: string): string {
+  if (!value) return '';
+  if (value.length <= 8) return '*'.repeat(value.length);
+  return `${value.slice(0, 4)}…${value.slice(-2)}`;
+}
+
+interface OnboardingState {
+  complete: boolean;
+  workspacePath?: string;
+  deploymentProfile?: 'local' | 'wsl2' | 'vps' | 'container';
+  completedAt?: string;
+}
+
+function defaultOnboardingState(): OnboardingState {
+  return { complete: false };
+}
+
+const RESERVED_SECRET_KEYS = new Set([
+  'botToken',
+  'token',
+  'apiToken',
+  'appToken',
+  'oauthToken',
+  'serviceAccount',
+  'webhookSecret',
+  'apiKey',
+  'sessionToken',
+]);
+
+function splitChannelPayload(body: Record<string, unknown>): {
+  config: Record<string, unknown>;
+  secrets: Record<string, string>;
+} {
+  const config: Record<string, unknown> = {};
+  const secrets: Record<string, string> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (RESERVED_SECRET_KEYS.has(key) && typeof value === 'string') {
+      secrets[key] = value;
+      continue;
+    }
+    config[key] = value;
+  }
+  return { config, secrets };
+}
 
 function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succeeded' | 'failed' {
   if (status === 'running' || status === 'planning') return 'running';
@@ -60,12 +124,27 @@ function collectCapabilities(plan?: HelmrPlan | null): string {
   return [...capabilities].join(', ') || 'approval';
 }
 
+export interface CreateHatcheryAppDeps {
+  store: HelmrSQLiteStore;
+  router: ModelRouter;
+  configManager: ConfigFileManager;
+  dataDir: string;
+  secretStore?: SecretStore;
+  pairingStore?: PairingStore;
+}
+
 export function createHatcheryApp(
-  store: HelmrSQLiteStore,
-  router: ModelRouter,
-  configManager: ConfigFileManager,
-  dataDir: string,
+  storeOrDeps: HelmrSQLiteStore | CreateHatcheryAppDeps,
+  routerArg?: ModelRouter,
+  configManagerArg?: ConfigFileManager,
+  dataDirArg?: string,
 ): Hono {
+  const deps: CreateHatcheryAppDeps = storeOrDeps instanceof HelmrSQLiteStore
+    ? { store: storeOrDeps, router: routerArg!, configManager: configManagerArg!, dataDir: dataDirArg! }
+    : storeOrDeps;
+  const { store, router, configManager, dataDir } = deps;
+  const secretStore = deps.secretStore ?? new SecretStore(join(dataDir, 'secrets.json'));
+  const pairingStore = deps.pairingStore ?? new PairingStore();
   const app = new Hono();
 
   app.use('*', async (c, next) => {
@@ -198,22 +277,26 @@ export function createHatcheryApp(
 
 
   // GET /api/providers — list configured model providers
-  app.get('/api/providers', (c) => {
+  app.get('/api/providers', async (c) => {
     const routes = router.allRoutes();
+    const storedKeys = new Set(await secretStore.list());
     return c.json({
       providers: PROVIDERS.map((provider) => ({
         name: provider.name,
         label: provider.label,
-        status: provider.name === 'ollama' || (provider.envKey && process.env[provider.envKey])
+        status: provider.name === 'ollama'
+          || (provider.envKey && (process.env[provider.envKey] || storedKeys.has(provider.envKey)))
           ? 'connected'
           : 'not_configured',
         description: provider.description,
+        envKey: provider.envKey || null,
+        configured: provider.name === 'ollama' || (provider.envKey && storedKeys.has(provider.envKey)),
         models: [...new Set(routes.filter((r) => r.provider === provider.name).map((r) => r.model))],
       })),
     });
   });
 
-  // POST /api/providers/:name/configure
+  // POST /api/providers/:name/configure — persists credentials to the secret store (0600)
   app.post('/api/providers/:name/configure', async (c) => {
     const { name } = c.req.param();
     const provider = PROVIDERS.find((p) => p.name === name);
@@ -226,9 +309,52 @@ export function createHatcheryApp(
     }
     const { apiKey } = body as { apiKey?: string };
     if (provider.envKey && typeof apiKey === 'string' && apiKey.trim()) {
-      process.env[provider.envKey] = apiKey.trim();
+      const trimmed = apiKey.trim();
+      await secretStore.set(provider.envKey, trimmed);
+      process.env[provider.envKey] = trimmed;
     }
-    return c.json({ name, configured: provider.name === 'ollama' || Boolean(provider.envKey && process.env[provider.envKey]) });
+    const configured = provider.name === 'ollama'
+      || Boolean(provider.envKey && process.env[provider.envKey]);
+    return c.json({ name, configured });
+  });
+
+  // DELETE /api/providers/:name/configure — wipes a provider's stored credentials
+  app.delete('/api/providers/:name/configure', async (c) => {
+    const { name } = c.req.param();
+    const provider = PROVIDERS.find((p) => p.name === name);
+    if (!provider) return c.json({ error: 'unknown provider' }, 400);
+    if (provider.envKey) {
+      await secretStore.delete(provider.envKey);
+      delete process.env[provider.envKey];
+    }
+    return c.json({ name, configured: false });
+  });
+
+  // POST /api/providers/:name/test — verifies a credential value without persisting it
+  app.post('/api/providers/:name/test', async (c) => {
+    const { name } = c.req.param();
+    const provider = PROVIDERS.find((p) => p.name === name);
+    if (!provider) return c.json({ error: 'unknown provider' }, 400);
+    let body: unknown = {};
+    try {
+      body = await c.req.json();
+    } catch {
+      // empty body means "test the currently stored key"
+    }
+    const candidate = ((body as { apiKey?: string }).apiKey ?? '').trim()
+      || (provider.envKey ? (process.env[provider.envKey] ?? (await secretStore.get(provider.envKey)) ?? '') : '');
+    if (provider.name === 'ollama') {
+      return c.json({ name, ok: true, message: 'Ollama uses a local endpoint, no key required' });
+    }
+    if (!candidate) {
+      return c.json({ name, ok: false, message: 'no credential supplied or stored' }, 400);
+    }
+    return c.json({
+      name,
+      ok: true,
+      message: `credential present (${redactSecret(candidate)})`,
+      redacted: redactSecret(candidate),
+    });
   });
 
   // GET /api/routing
@@ -256,30 +382,182 @@ export function createHatcheryApp(
     return c.json({ task, route });
   });
 
-  // GET /api/channels
-  app.get('/api/channels', (c) => {
-    return c.json({
-      channels: [
-        { name: 'webchat', label: 'WebChat', status: 'active', endpoint: `http://localhost:${HATCHERY_PORT}`, pairingState: 'paired' },
-        { name: 'telegram', label: 'Telegram', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'discord', label: 'Discord', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'slack', label: 'Slack', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'whatsapp', label: 'WhatsApp', status: 'not_configured', pairingState: 'unpaired' },
-      ],
+  // GET /api/channels — merges the static catalog with persisted state
+  app.get('/api/channels', async (c) => {
+    const persisted = new Map((await store.listChannels()).map((row) => [row.name, row]));
+    const channels = CHANNEL_CATALOG.map((entry) => {
+      const row = persisted.get(entry.name);
+      if (entry.name === 'webchat') {
+        return {
+          name: entry.name,
+          label: entry.label,
+          status: 'active',
+          pairingState: 'paired',
+          endpoint: `http://localhost:${HATCHERY_PORT}`,
+          requiresPairing: false,
+        };
+      }
+      return {
+        name: entry.name,
+        label: entry.label,
+        status: row?.status ?? 'not_configured',
+        pairingState: row?.pairingState ?? 'unpaired',
+        requiresPairing: entry.requiresPairing,
+        configured: Boolean(row?.config),
+      };
     });
+    return c.json({ channels });
   });
 
-  // POST /api/channels/:name/configure
+  // POST /api/channels/:name/configure — persists channel credentials (secrets stored separately)
   app.post('/api/channels/:name/configure', async (c) => {
     const { name } = c.req.param();
-    const known = new Set(['webchat', 'telegram', 'discord', 'slack', 'whatsapp']);
-    if (!known.has(name)) return c.json({ error: 'unknown channel' }, 400);
+    const entry = channelEntry(name);
+    if (!entry) return c.json({ error: 'unknown channel' }, 400);
+    let body: Record<string, unknown> = {};
     try {
-      await c.req.json();
+      body = (await c.req.json()) as Record<string, unknown>;
     } catch {
       return c.json({ error: 'invalid JSON' }, 400);
     }
-    return c.json({ name, status: name === 'webchat' ? 'active' : 'not_configured', pairingState: name === 'webchat' ? 'paired' : 'pending' });
+
+    const { config, secrets } = splitChannelPayload(body);
+
+    if (secrets) {
+      for (const [secretKey, secretValue] of Object.entries(secrets)) {
+        if (typeof secretValue === 'string' && secretValue.trim()) {
+          await secretStore.set(`CHANNEL_${name.toUpperCase()}_${secretKey.toUpperCase()}`, secretValue.trim());
+        }
+      }
+    }
+
+    const existing = await store.getChannel(name);
+    const record: ChannelStateRecord = {
+      name,
+      status: entry.name === 'webchat' ? 'active' : 'configured',
+      pairingState: entry.requiresPairing ? existing?.pairingState ?? 'unpaired' : 'paired',
+      config: Object.keys(config).length ? config : existing?.config,
+      adminId: existing?.adminId,
+      pairedAt: existing?.pairedAt,
+    };
+    await store.upsertChannel(record);
+
+    return c.json({
+      name,
+      status: record.status,
+      pairingState: record.pairingState,
+      requiresPairing: entry.requiresPairing,
+    });
+  });
+
+  // POST /api/channels/:name/start-pairing — issues a single-use pairing code (10 min TTL)
+  app.post('/api/channels/:name/start-pairing', async (c) => {
+    const { name } = c.req.param();
+    const entry = channelEntry(name);
+    if (!entry) return c.json({ error: 'unknown channel' }, 400);
+    if (!entry.requiresPairing) {
+      return c.json({ error: 'channel does not require pairing' }, 400);
+    }
+    let body: { adminId?: string } = {};
+    try {
+      body = (await c.req.json()) as { adminId?: string };
+    } catch {
+      // adminId optional
+    }
+    const adminId = (body.adminId ?? '').trim();
+    if (!adminId) {
+      return c.json({ error: 'adminId is required to start pairing' }, 400);
+    }
+
+    const pair = pairingStore.create(adminId);
+    const existing = await store.getChannel(name);
+    await store.upsertChannel({
+      name,
+      status: existing?.status ?? 'configured',
+      pairingState: 'pending',
+      config: existing?.config,
+      adminId,
+    });
+
+    return c.json({
+      name,
+      code: pair.code,
+      expiresAt: pair.expiresAt,
+      adminId,
+      pairingState: 'pending',
+    });
+  });
+
+  // POST /api/channels/:name/complete-pairing — consumes a code and marks the channel paired
+  app.post('/api/channels/:name/complete-pairing', async (c) => {
+    const { name } = c.req.param();
+    const entry = channelEntry(name);
+    if (!entry) return c.json({ error: 'unknown channel' }, 400);
+    if (!entry.requiresPairing) {
+      return c.json({ error: 'channel does not require pairing' }, 400);
+    }
+    let body: { code?: string } = {};
+    try {
+      body = (await c.req.json()) as { code?: string };
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const code = (body.code ?? '').trim().toUpperCase();
+    if (!code) return c.json({ error: 'pairing code is required' }, 400);
+
+    const adminId = pairingStore.consume(code);
+    if (!adminId) {
+      return c.json({ error: 'invalid, used, or expired pairing code' }, 400);
+    }
+
+    const existing = await store.getChannel(name);
+    const record: ChannelStateRecord = {
+      name,
+      status: 'active',
+      pairingState: 'paired',
+      config: existing?.config,
+      adminId,
+      pairedAt: new Date().toISOString(),
+    };
+    await store.upsertChannel(record);
+    return c.json({ name, pairingState: 'paired', adminId, pairedAt: record.pairedAt });
+  });
+
+  // GET /api/onboarding/state — Hatchery onboarding progress + readiness
+  app.get('/api/onboarding/state', async (c) => {
+    const state = (await store.getSystemState<OnboardingState>('onboarding')) ?? defaultOnboardingState();
+    const storedKeys = new Set(await secretStore.list());
+    const providerKeys = PROVIDERS.filter(
+      (p) => p.envKey && (process.env[p.envKey] || storedKeys.has(p.envKey)),
+    ).map((p) => p.name);
+    return c.json({
+      ...state,
+      providersConfigured: providerKeys,
+      hasAnyProvider: providerKeys.length > 0,
+    });
+  });
+
+  // POST /api/onboarding/complete — marks onboarding done and persists workspace path
+  app.post('/api/onboarding/complete', async (c) => {
+    let body: Partial<OnboardingState> = {};
+    try {
+      body = (await c.req.json()) as Partial<OnboardingState>;
+    } catch {
+      // empty body permitted
+    }
+    const next: OnboardingState = {
+      complete: true,
+      workspacePath: typeof body.workspacePath === 'string' && body.workspacePath.trim()
+        ? body.workspacePath.trim()
+        : dataDir,
+      deploymentProfile:
+        body.deploymentProfile && ['local', 'wsl2', 'vps', 'container'].includes(body.deploymentProfile)
+          ? body.deploymentProfile
+          : 'local',
+      completedAt: new Date().toISOString(),
+    };
+    await store.setSystemState('onboarding', next);
+    return c.json(next);
   });
 
   // GET /api/settings
@@ -393,7 +671,12 @@ export async function startHatcheryServer(options: HatcheryServerOptions = {}): 
   const configManager = new ConfigFileManager(configDir);
   await configManager.init();
 
-  const app = createHatcheryApp(store, router, configManager, dataDir);
+  const secretStore = new SecretStore(join(dataDir, 'secrets.json'));
+  await secretStore.load();
+  await secretStore.applyToEnv();
+  const pairingStore = new PairingStore();
+
+  const app = createHatcheryApp({ store, router, configManager, dataDir, secretStore, pairingStore });
   const nodeServer = serve({ fetch: app.fetch, port });
 
   return {

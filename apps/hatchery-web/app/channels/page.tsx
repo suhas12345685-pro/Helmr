@@ -16,6 +16,9 @@ const DEFAULT_CHANNELS: Channel[] = [
   { name: 'discord', label: 'Discord', status: 'not_configured', pairingState: 'unpaired' },
   { name: 'slack', label: 'Slack', status: 'not_configured', pairingState: 'unpaired' },
   { name: 'whatsapp', label: 'WhatsApp', status: 'not_configured', pairingState: 'unpaired' },
+  { name: 'signal', label: 'Signal', status: 'not_configured', pairingState: 'unpaired' },
+  { name: 'teams', label: 'Microsoft Teams', status: 'not_configured', pairingState: 'unpaired' },
+  { name: 'google-chat', label: 'Google Chat', status: 'not_configured', pairingState: 'unpaired' },
 ];
 
 function mergeChannels(defaults: Channel[], fetched: Channel[]): Channel[] {
