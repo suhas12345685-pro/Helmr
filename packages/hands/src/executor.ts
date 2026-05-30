@@ -1,0 +1,77 @@
+import { randomUUID } from 'node:crypto';
+import { evaluateToolReceipt } from '../../cortex/src/policy.js';
+import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
+import { writeWorkspaceFile, deleteWorkspaceFile, runShellWrite, gitAdd, gitCommit } from './write-tools.js';
+import { runShellRead, runGitStatus, runGitLog } from './shell-tools.js';
+import type { ToolReceipt, ToolResult } from '../../shared/src/index.js';
+
+export async function executeReceipt(receipt: ToolReceipt, workspacePath: string): Promise<ToolResult> {
+  const decision = evaluateToolReceipt(receipt);
+
+  if (!decision.allowed) {
+    return makeResult(receipt, 'failed', undefined, `denied: ${decision.reasons.join('; ')}`);
+  }
+
+  try {
+    const output = await dispatch(receipt, workspacePath);
+    return makeResult(receipt, 'succeeded', output);
+  } catch (err) {
+    return makeResult(receipt, 'failed', undefined, (err as Error).message);
+  }
+}
+
+async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<unknown> {
+  const input = receipt.input as Record<string, unknown>;
+
+  switch (receipt.tool) {
+    case 'read_workspace':
+      return summarizeWorkspace(workspacePath, (input['limit'] as number) ?? 200);
+
+    case 'read_workspace_file':
+      return readWorkspaceFile(workspacePath, input['filePath'] as string);
+
+    case 'shell_read':
+      return runShellRead(workspacePath, input['command'] as string);
+
+    case 'git_status':
+      return runGitStatus(workspacePath);
+
+    case 'git_log':
+      return runGitLog(workspacePath, (input['maxCount'] as number) ?? 10);
+
+    case 'write_workspace_file':
+      return writeWorkspaceFile(workspacePath, input['filePath'] as string, input['content'] as string);
+
+    case 'delete_workspace_file':
+      return deleteWorkspaceFile(workspacePath, input['filePath'] as string);
+
+    case 'shell_write':
+      return runShellWrite(workspacePath, input['command'] as string);
+
+    case 'git_add':
+      return gitAdd(workspacePath, input['paths'] as string[]);
+
+    case 'git_commit':
+      return gitCommit(workspacePath, input['message'] as string);
+
+    default:
+      throw new Error(`unknown tool: ${receipt.tool}`);
+  }
+}
+
+function makeResult(
+  receipt: ToolReceipt,
+  status: ToolResult['status'],
+  output?: unknown,
+  error?: string,
+): ToolResult {
+  return {
+    id: `result_${randomUUID()}`,
+    receiptId: receipt.id,
+    jobId: receipt.jobId,
+    status,
+    output,
+    error,
+    createdAt: new Date().toISOString(),
+  };
+}

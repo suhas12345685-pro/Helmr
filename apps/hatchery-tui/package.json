@@ -1,0 +1,23 @@
+{
+  "name": "@helmr/hatchery-tui",
+  "version": "0.1.0",
+  "description": "Helmr Hatchery terminal dashboard",
+  "type": "module",
+  "bin": {
+    "helmr-tui": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.tsx",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "ink": "^5.0.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
