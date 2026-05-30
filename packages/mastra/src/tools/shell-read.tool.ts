@@ -8,10 +8,10 @@ export const shellReadTool = createTool({
   description: 'Run a read-only shell command inside the workspace. Only non-mutating commands are allowed.',
   inputSchema: z.object({
     workspacePath: z.string().describe('Absolute path to the workspace root'),
-    command: z.string().describe('Shell command to run (read-only operations only)'),
+    argv: z.array(z.string().min(1)).min(1).describe('Command argv to run with shell disabled (read-only operations only)'),
   }),
   execute: async (input) => {
-    return runShellRead(input.workspacePath, input.command);
+    return runShellRead(input.workspacePath, input.argv);
   },
 });
 

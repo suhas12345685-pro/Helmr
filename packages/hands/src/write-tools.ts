@@ -1,9 +1,7 @@
 import { writeFile, mkdir, unlink, rename } from 'node:fs/promises';
-import { exec } from 'node:child_process';
 import { resolve, relative, sep, dirname, isAbsolute } from 'node:path';
-import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+import { runProcess } from './process-runner.js';
 
 export interface WriteResult {
   path: string;
@@ -42,11 +40,22 @@ function checkPathTraversal(root: string, targetPath: string, label: string): st
   return target;
 }
 
-// ── Shell sanitization helper ────────────────────────────────────────
+// ── Shell argv validation helper ────────────────────────────────────
 
-function hasShellMetacharacters(command: string): boolean {
-  const metacharacters = [';', '&', '|', '`', '$', '>', '<', '\n', '\r'];
-  return metacharacters.some((char) => command.includes(char));
+function validateArgv(argv: readonly string[]): string[] {
+  if (!Array.isArray(argv) || argv.length === 0) {
+    throw new Error('command must be provided as an argv array');
+  }
+
+  return argv.map((arg) => {
+    if (typeof arg !== 'string' || arg.length === 0) {
+      throw new Error('command argv entries must be non-empty strings');
+    }
+    if (/[\u0000\r\n]/u.test(arg)) {
+      throw new Error('command argv entries must not contain control delimiters');
+    }
+    return arg;
+  });
 }
 
 // ── Filesystem writes ────────────────────────────────────────────────
@@ -94,65 +103,42 @@ export async function renameWorkspaceFile(
 
 // ── Shell writes (approval-gated) ──────────────────────────────────
 
-const WRITE_ALLOWLIST = [
-  'npm install',
-  'npm ci',
-  'npm run',
-  'npx tsc',
-  'git add',
-  'git commit',
-  'git checkout',
-  'git stash',
-  'node',
-  'mkdir',
-  'rm',
+const WRITE_ALLOWLIST: ReadonlyArray<readonly string[]> = [
+  ['npm', 'install'],
+  ['npm', 'ci'],
+  ['npm', 'run'],
+  ['npx', 'tsc'],
+  ['git', 'add'],
+  ['git', 'commit'],
+  ['git', 'checkout'],
+  ['git', 'stash'],
+  ['node'],
+  ['mkdir'],
+  ['rm'],
 ] as const;
 
-function isAllowedWriteCommand(command: string): boolean {
-  const trimmed = command.trim();
-  const lowerTrimmed = trimmed.toLowerCase();
-
-  const hasAllowedPrefix = WRITE_ALLOWLIST.some((prefix) => {
-    const lowerPrefix = prefix.toLowerCase();
-    return lowerTrimmed === lowerPrefix || lowerTrimmed.startsWith(lowerPrefix + ' ');
+function isAllowedWriteCommand(argv: readonly string[]): boolean {
+  const normalized = validateArgv(argv).map((part) => part.toLowerCase());
+  return WRITE_ALLOWLIST.some((prefix) => {
+    if (normalized.length < prefix.length) {
+      return false;
+    }
+    return prefix.every((part, index) => normalized[index] === part);
   });
-
-  if (!hasAllowedPrefix) {
-    return false;
-  }
-
-  if (hasShellMetacharacters(trimmed)) {
-    return false;
-  }
-
-  return true;
 }
 
 export async function runShellWrite(
   workspacePath: string,
-  command: string,
+  argv: readonly string[],
 ): Promise<ShellWriteResult> {
-  if (!isAllowedWriteCommand(command)) {
-    throw new Error(`command not in write allowlist: ${command}`);
+  if (!isAllowedWriteCommand(argv)) {
+    throw new Error(`command not in write allowlist: ${JSON.stringify(argv)}`);
   }
 
-  const root = resolve(workspacePath);
-  try {
-    const { stdout, stderr } = await execAsync(command, {
-      cwd: root,
-      timeout: 120_000,
-      maxBuffer: 1024 * 1024,
-    });
-    return { stdout, stderr, command, exitCode: 0 };
-  } catch (err) {
-    const e = err as { stdout?: string; stderr?: string; code?: number };
-    return {
-      stdout: e.stdout ?? '',
-      stderr: e.stderr ?? '',
-      command,
-      exitCode: e.code ?? 1,
-    };
-  }
+  return runProcess(workspacePath, argv, {
+    timeoutMs: 120_000,
+    maxBufferBytes: 1024 * 1024,
+  });
 }
 
 // ── Git write operations ───────────────────────────────────────────
@@ -164,33 +150,31 @@ export async function gitAdd(workspacePath: string, paths: string[]): Promise<Sh
   for (const p of paths) {
     const target = resolve(root, p);
     const rel = relative(root, target);
-    
+
     if (rel.startsWith('..') || rel.includes(`..${sep}`) || rel === '' || target === root) {
       throw new Error(`path traversal denied in gitAdd: ${p}`);
     }
 
-    if (hasShellMetacharacters(rel)) {
+    if (/[\u0000\r\n]/u.test(rel)) {
       throw new Error(`invalid characters in path: ${p}`);
     }
 
-    const escapedPath = rel.replace(/"/g, '\\"');
-    sanitizedPaths.push(`"${escapedPath}"`);
+    sanitizedPaths.push(rel);
   }
 
   if (sanitizedPaths.length === 0) {
     throw new Error('no paths provided to gitAdd');
   }
 
-  return runShellWrite(workspacePath, `git add ${sanitizedPaths.join(' ')}`);
+  return runShellWrite(workspacePath, ['git', 'add', ...sanitizedPaths]);
 }
 
 export async function gitCommit(workspacePath: string, message: string): Promise<ShellWriteResult> {
-  if (hasShellMetacharacters(message)) {
-    throw new Error('commit message contains forbidden shell metacharacters');
+  if (/[\u0000\r\n]/u.test(message)) {
+    throw new Error('commit message contains forbidden control delimiters');
   }
 
-  const safe = message.replace(/"/g, '\\"');
-  return runShellWrite(workspacePath, `git commit -m "${safe}"`);
+  return runShellWrite(workspacePath, ['git', 'commit', '-m', message]);
 }
 
 export async function gitCheckout(
@@ -198,12 +182,14 @@ export async function gitCheckout(
   ref: string,
   newBranch = false,
 ): Promise<ShellWriteResult> {
-  const flag = newBranch ? '-b ' : '';
   const cleanRef = ref.replace(/[^a-zA-Z0-9/._-]/g, '');
   if (cleanRef !== ref) {
     throw new Error(`invalid ref for checkout: ${ref}`);
   }
-  return runShellWrite(workspacePath, `git checkout ${flag}${cleanRef}`);
+  return runShellWrite(
+    workspacePath,
+    newBranch ? ['git', 'checkout', '-b', cleanRef] : ['git', 'checkout', cleanRef],
+  );
 }
 
 // ── Package install (approval-gated) ──────────────────────────────
@@ -213,10 +199,8 @@ export async function npmInstall(
   packages: string[],
   opts: { dev?: boolean; exact?: boolean } = {},
 ): Promise<ShellWriteResult> {
-  const flags = [opts.dev ? '--save-dev' : '', opts.exact ? '--save-exact' : '']
-    .filter(Boolean)
-    .join(' ');
-  
+  const flags = [opts.dev ? '--save-dev' : '', opts.exact ? '--save-exact' : ''].filter(Boolean);
+
   const sanitizedPkgs = packages.map((p) => {
     const clean = p.replace(/[^a-zA-Z0-9@/._\-^~=]/g, '');
     if (clean !== p) {
@@ -229,7 +213,5 @@ export async function npmInstall(
     throw new Error('no packages specified for npmInstall');
   }
 
-  const pkgString = sanitizedPkgs.join(' ');
-  const command = `npm install ${flags} ${pkgString}`.trim().replace(/\s+/g, ' ');
-  return runShellWrite(workspacePath, command);
+  return runShellWrite(workspacePath, ['npm', 'install', ...flags, ...sanitizedPkgs]);
 }

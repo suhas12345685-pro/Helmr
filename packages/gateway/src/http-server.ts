@@ -10,7 +10,13 @@ import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
 import { evaluateApiAuth } from '../../shared/src/http-auth.js';
-import { evaluateContentLength, getMaxBodyBytes } from '../../shared/src/http-limits.js';
+import {
+  DEFAULT_HEADERS_TIMEOUT_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  evaluateContentLength,
+  getHttpTimeoutMs,
+  getMaxBodyBytes,
+} from '../../shared/src/http-limits.js';
 import { securityHeaders } from '../../shared/src/http-security.js';
 import { normalizeRequestId } from '../../shared/src/request-id.js';
 import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../shared/src/rate-limit.js';
@@ -65,8 +71,11 @@ export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter): 
   app.post('/api/events', async (c) => {
     let body: unknown;
     try {
-      body = await c.req.json();
-    } catch {
+      body = await readJsonBodyWithLimit(c.req.raw, getMaxBodyBytes(process.env['HELMR_MAX_BODY_BYTES']));
+    } catch (err) {
+      if (err instanceof BodyLimitError) {
+        return c.json({ error: err.message }, 413);
+      }
       return c.json({ error: 'invalid JSON body' }, 400);
     }
 
@@ -191,6 +200,37 @@ export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter): 
   return app;
 }
 
+
+async function readJsonBodyWithLimit(request: Request, maxBytes: number): Promise<unknown> {
+  if (!request.body) {
+    return {};
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      received += value.byteLength;
+      if (received > maxBytes) {
+        throw new BodyLimitError('request body too large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return JSON.parse(new TextDecoder().decode(Buffer.concat(chunks)));
+}
+
+class BodyLimitError extends Error {}
+
 async function runSelfTestChecks(): Promise<Array<{ name: string; passed: boolean; detail?: string }>> {
   const checks: Array<{ name: string; passed: boolean; detail?: string }> = [];
 
@@ -232,6 +272,15 @@ export async function startGatewayServer(options: GatewayServerOptions = {}): Pr
   // Use createAdaptorServer so we can attach WebSocket to the same http.Server
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const httpServer = createAdaptorServer({ fetch: app.fetch }) as any;
+  httpServer.headersTimeout = getHttpTimeoutMs(
+    process.env['HELMR_HEADERS_TIMEOUT_MS'],
+    DEFAULT_HEADERS_TIMEOUT_MS,
+  );
+  httpServer.requestTimeout = getHttpTimeoutMs(
+    process.env['HELMR_REQUEST_TIMEOUT_MS'],
+    DEFAULT_REQUEST_TIMEOUT_MS,
+  );
+  httpServer.keepAliveTimeout = Math.min(httpServer.requestTimeout, 5_000);
 
   const wss = new WebSocketServer({ server: httpServer });
   const clients = new Set<WebSocket>();

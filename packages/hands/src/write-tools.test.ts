@@ -89,23 +89,23 @@ test('runShellWrite gates and blocks non-allowlisted commands', async () => {
 
   // Non-allowlisted command
   await assert.rejects(
-    () => runShellWrite(workspace, 'format c:'),
+    () => runShellWrite(workspace, ['format', 'c:']),
     /command not in write allowlist/,
   );
 
   // Command starting with allowed prefix but containing chaining/injection
   await assert.rejects(
-    () => runShellWrite(workspace, 'git add . && rm -rf /'),
+    () => runShellWrite(workspace, ['git', 'status', '&&', 'rm', '-rf', '/']),
     /command not in write allowlist/,
   );
 
   await assert.rejects(
-    () => runShellWrite(workspace, 'npm install lodash; echo "hacked"'),
+    () => runShellWrite(workspace, ['curl', 'http://evil.test']),
     /command not in write allowlist/,
   );
 
   await assert.rejects(
-    () => runShellWrite(workspace, 'npx tsc | rm -rf'),
+    () => runShellWrite(workspace, ['echo', 'hello']),
     /command not in write allowlist/,
   );
 });
@@ -120,14 +120,14 @@ test('gitAdd, gitCommit, gitCheckout validate inputs and sanitize parameters', a
   );
 
   await assert.rejects(
-    () => gitAdd(workspace, ['src/file.ts; rm -rf']),
+    () => gitAdd(workspace, ['src/file.ts\nrm']),
     /invalid characters in path/,
   );
 
   // gitCommit metacharacter check
   await assert.rejects(
-    () => gitCommit(workspace, 'feat: something; rm -rf'),
-    /commit message contains forbidden shell metacharacters/,
+    () => gitCommit(workspace, 'feat: something\nrm -rf'),
+    /commit message contains forbidden control delimiters/,
   );
 
   // gitCheckout ref validation

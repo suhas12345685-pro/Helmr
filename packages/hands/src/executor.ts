@@ -31,7 +31,7 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
       return readWorkspaceFile(workspacePath, input['filePath'] as string);
 
     case 'shell_read':
-      return runShellRead(workspacePath, input['command'] as string);
+      return runShellRead(workspacePath, input['argv'] as string[]);
 
     case 'git_status':
       return runGitStatus(workspacePath);
@@ -46,7 +46,7 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
       return deleteWorkspaceFile(workspacePath, input['filePath'] as string);
 
     case 'shell_write':
-      return runShellWrite(workspacePath, input['command'] as string);
+      return runShellWrite(workspacePath, input['argv'] as string[]);
 
     case 'git_add':
       return gitAdd(workspacePath, input['paths'] as string[]);

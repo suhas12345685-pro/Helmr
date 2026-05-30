@@ -33,21 +33,26 @@ const createPlanStep = createStep({
 
     const prompt = buildPlanningPrompt(event as HelmrEvent, jobId);
 
-    const result = await councilAgent.generate(
-      [{ role: 'user', content: prompt }],
-      {
-        structuredOutput: {
-          schema: HelmrPlanSchema,
+    try {
+      const result = await councilAgent.generate(
+        [{ role: 'user', content: prompt }],
+        {
+          structuredOutput: {
+            schema: HelmrPlanSchema,
+          },
         },
-      },
-    );
+      );
 
-    const plan = result.object as HelmrPlan;
-
-    return {
-      plan,
-      rawText: result.text ?? '',
-    };
+      return {
+        plan: repairPlan(result.object, event as HelmrEvent, jobId),
+        rawText: result.text ?? '',
+      };
+    } catch (err) {
+      return {
+        plan: repairPlan(undefined, event as HelmrEvent, jobId),
+        rawText: err instanceof Error ? err.message : 'planning output repair fallback',
+      };
+    }
   },
 });
 
@@ -83,4 +88,32 @@ The plan must have:
 For a workspace summarization request, the plan should be read-only with a single step using workspace_read capability.
 
 Produce the plan now.`;
+}
+
+
+export function repairPlan(candidate: unknown, event: HelmrEvent, jobId: string): HelmrPlan {
+  const parsed = HelmrPlanSchema.safeParse(candidate);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const fallback: HelmrPlan = {
+    id: `plan_${jobId}`,
+    jobId,
+    summary: `Inspect workspace for: ${event.payload.text.slice(0, 120)}`,
+    risk: 'low',
+    requiresApproval: false,
+    steps: [
+      {
+        id: 'step_read_workspace',
+        title: 'Inspect workspace structure',
+        kind: 'read',
+        agent: 'research',
+        canRunInParallelWith: [],
+        requiredCapabilities: ['workspace_read'],
+      },
+    ],
+  };
+
+  return HelmrPlanSchema.parse(fallback);
 }

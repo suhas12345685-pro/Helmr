@@ -7,18 +7,18 @@ const WORKSPACE = process.cwd();
 
 test('shellReadTool blocks disallowed commands', async () => {
   await assert.rejects(
-    () => runShellRead(WORKSPACE, 'rm -rf /'),
+    () => runShellRead(WORKSPACE, ['rm', '-rf', '/']),
     /not in read-only allowlist/,
   );
 
   await assert.rejects(
-    () => runShellRead(WORKSPACE, 'npm install malware'),
+    () => runShellRead(WORKSPACE, ['npm', 'install', 'malware']),
     /not in read-only allowlist/,
   );
 });
 
 test('shellReadTool allows node version check', async () => {
-  const result = await runShellRead(WORKSPACE, 'node --version');
+  const result = await runShellRead(WORKSPACE, ['node', '--version']);
   assert.match(result.stdout, /v\d+\.\d+/);
   assert.equal(result.command, 'node --version');
 });

@@ -138,6 +138,27 @@ export class HelmrSQLiteStore {
     });
   }
 
+  async extendJobLease(id: string, leaseMs: number, now = new Date()): Promise<boolean> {
+    const current = await this.getJob(id);
+    if (!current || (current.status !== 'running' && current.status !== 'planning')) {
+      return false;
+    }
+    if (!current.leaseUntil || Date.parse(current.leaseUntil) <= now.getTime()) {
+      return false;
+    }
+
+    const nextLease = new Date(now.getTime() + leaseMs).toISOString();
+    const rs = await this.db.execute({
+      sql: `UPDATE jobs
+            SET lease_until=?, updated_at=?
+            WHERE id=?
+              AND status IN ('running','planning')
+              AND lease_until=?`,
+      args: [nextLease, now.toISOString(), id, current.leaseUntil],
+    });
+    return rs.rowsAffected === 1;
+  }
+
   async updateJobStatus(id: string, status: HelmrJob['status'], error?: string): Promise<void> {
     const now = new Date().toISOString();
     if (status === 'running') {
