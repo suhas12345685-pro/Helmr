@@ -1,12 +1,23 @@
 import { WebSocketServer, WebSocket } from 'ws';
 
+import { safeTokenEquals } from '../../shared/src/index.js';
 import { normalizeChannelEvent, type ChannelAdapter, type ChannelInfo, type ChannelStatus, type EventEmitter } from './types.js';
 
 export interface WebChatAdapterOptions {
   port: number;
   onEvent: EventEmitter;
   workspacePath?: string;
+  /**
+   * Bearer token clients must present via the `Sec-WebSocket-Protocol`
+   * handshake header (e.g. `new WebSocket(url, [token, 'helmr'])`). When
+   * undefined or empty, the socket accepts unauthenticated connections —
+   * matching the HTTP surfaces that allow open access when HELMR_API_TOKEN
+   * is unset. In production the token must be configured.
+   */
+  apiToken?: string;
 }
+
+const WS_SUBPROTOCOL = 'helmr';
 
 interface IncomingMessage {
   text: string;
@@ -31,11 +42,13 @@ export class WebChatAdapter implements ChannelAdapter {
   private readonly port: number;
   private readonly onEvent: EventEmitter;
   private readonly workspacePath: string;
+  private readonly apiToken: string;
 
   constructor(options: WebChatAdapterOptions) {
     this.port = options.port;
     this.onEvent = options.onEvent;
     this.workspacePath = options.workspacePath ?? process.cwd();
+    this.apiToken = options.apiToken?.trim() ?? '';
   }
 
   getStatus(): ChannelStatus {
@@ -67,7 +80,20 @@ export class WebChatAdapter implements ChannelAdapter {
   async start(): Promise<void> {
     if (this.wss) return;
 
-    this.wss = new WebSocketServer({ port: this.port });
+    const expectedToken = this.apiToken;
+
+    this.wss = new WebSocketServer({
+      port: this.port,
+      verifyClient: (info, done) => {
+        if (!expectedToken) return done(true);
+        const provided = extractBearerSubprotocol(info.req.headers['sec-websocket-protocol']);
+        if (!provided || !safeTokenEquals(provided, expectedToken)) {
+          return done(false, 401, 'Unauthorized');
+        }
+        done(true);
+      },
+      handleProtocols: (protocols) => (protocols.has(WS_SUBPROTOCOL) ? WS_SUBPROTOCOL : false),
+    });
 
     this.wss.on('connection', (ws) => {
       this.clients.add(ws);
@@ -117,4 +143,15 @@ export class WebChatAdapter implements ChannelAdapter {
 
     await this.onEvent(helmrEvent);
   }
+}
+
+function extractBearerSubprotocol(header: string | string[] | undefined): string | null {
+  if (!header) return null;
+  const raw = Array.isArray(header) ? header.join(',') : header;
+  for (const part of raw.split(',')) {
+    const value = part.trim();
+    if (!value || value === WS_SUBPROTOCOL) continue;
+    return value;
+  }
+  return null;
 }
