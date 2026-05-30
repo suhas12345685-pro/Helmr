@@ -202,7 +202,11 @@ The execution plane owns actions against the outside world:
 - MCP tools.
 - Package install.
 - Service management.
-- Docker or sandboxed execution.
+
+Helmr does not impose Docker or sandbox isolation. The agent runs wherever
+the user chooses to install it, with the same trust as the user account
+that started it. Workspace boundaries, capability gating, approval gates,
+and audit logs are the safety model — not container walls.
 
 Packages:
 
@@ -210,7 +214,6 @@ Packages:
 packages/hands
 packages/browser
 packages/mcp
-packages/sandbox
 ```
 
 ---
@@ -515,7 +518,6 @@ helmr/
     subagents/
     mcp/
     browser/
-    sandbox/
   scripts/
   docs/
   package.json
@@ -1405,7 +1407,6 @@ MVP defers:
 - dynamic MCP installation.
 - self-healing agents.
 - Nucleoid as core policy engine.
-- Docker sandbox.
 - long-running multi-day jobs.
 - Temporal/Inngest.
 - multi-tenant cloud operation.
