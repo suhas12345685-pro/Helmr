@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.mastra/
+.claude/
+.next/
+apps/hatchery-web/.next/
+architecture.backup.md
+packages/shared/src/*.js
+*.tsbuildinfo
+*.db
+*.sqlite
+*.sqlite3
+.helmr-production-check/
+.env
+.env.*
+!.env.example
+npm-debug.log*
