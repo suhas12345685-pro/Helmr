@@ -99,3 +99,21 @@ test('normalizeCliEvent rejects blank event text', () => {
     /Event text is required/,
   );
 });
+
+test('normalization strips ANSI/control delimiters and normalizes unicode', () => {
+  const event = normalizeApiEvent(
+    {
+      body: {
+        text: 'Cafe\u0301\u001b[31m\u0000\r\nrun',
+        workspace: { id: 'local', path: process.cwd() },
+        principal: { id: 'owner', type: 'local-user', trustLevel: 'owner' },
+      },
+    },
+    {
+      createId: () => 'evt_sanitized',
+      now: () => new Date('2026-05-28T10:00:00.000Z'),
+    },
+  );
+
+  assert.equal(event.payload.text, 'Café run');
+});

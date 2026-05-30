@@ -170,3 +170,25 @@ describe('WorkspaceLockManager', () => {
     assert.equal(secondWorkspace?.workspaceId, 'workspace-2');
   });
 });
+
+  test('clears stale locks and allows waiting writers to acquire', async () => {
+    const locks = new WorkspaceLockManager();
+    const reader = locks.tryAcquire({
+      workspaceId: 'workspace-1',
+      ownerId: 'worker-1',
+      mode: 'read',
+      now: new Date('2026-05-28T10:00:00.000Z'),
+      ttlMs: 10,
+    });
+
+    assert.ok(reader);
+    assert.equal(locks.activeLocks('workspace-1', new Date('2026-05-28T10:00:00.020Z')).length, 0);
+
+    const writer = locks.tryAcquire({
+      workspaceId: 'workspace-1',
+      ownerId: 'worker-2',
+      mode: 'write',
+      now: new Date('2026-05-28T10:00:00.021Z'),
+    });
+    assert.equal(writer?.mode, 'write');
+  });

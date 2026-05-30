@@ -5,6 +5,11 @@ export interface ClaimOptions {
   now?: Date;
 }
 
+export interface HeartbeatOptions {
+  leaseMs: number;
+  now?: Date;
+}
+
 type QueueStatus = HelmrJob['status'] | 'leased';
 
 const TERMINAL_STATUSES = new Set<QueueStatus>(['succeeded', 'failed', 'cancelled']);
@@ -62,7 +67,26 @@ export class InMemoryJobQueue {
     if (current.status !== 'leased') {
       throw new Error(`job must be leased before running: ${jobId}`);
     }
+    if (!current.leaseUntil || Date.parse(current.leaseUntil) <= now.getTime()) {
+      throw new Error(`lease expired before running: ${jobId}`);
+    }
     return this.update(jobId, { status: 'running', updatedAt: now.toISOString() });
+  }
+
+  heartbeat(jobId: string, options: HeartbeatOptions): InMemoryQueueJob {
+    const now = options.now ?? new Date();
+    const current = this.requireJob(jobId);
+    if (current.status !== 'leased' && current.status !== 'running') {
+      throw new Error(`job must be leased or running before heartbeat: ${jobId}`);
+    }
+    if (!current.leaseUntil || Date.parse(current.leaseUntil) <= now.getTime()) {
+      throw new Error(`cannot heartbeat expired lease: ${jobId}`);
+    }
+
+    return this.update(jobId, {
+      leaseUntil: new Date(now.getTime() + options.leaseMs).toISOString(),
+      updatedAt: now.toISOString(),
+    });
   }
 
   complete(jobId: string, now = new Date()): InMemoryQueueJob {

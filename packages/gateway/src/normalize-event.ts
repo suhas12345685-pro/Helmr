@@ -86,7 +86,7 @@ function createPayload(
   text: string | undefined,
   attachments: HelmrEvent['payload']['attachments'],
 ): HelmrEvent['payload'] {
-  const normalizedText = text?.trim();
+  const normalizedText = sanitizeEventText(text).trim();
 
   if (!normalizedText) {
     throw new Error('Event text is required');
@@ -95,6 +95,14 @@ function createPayload(
   return attachments === undefined
     ? { text: normalizedText }
     : { text: normalizedText, attachments };
+}
+
+export function sanitizeEventText(text: string | undefined): string {
+  return (text ?? '')
+    .normalize('NFC')
+    .replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, '')
+    .replace(/[\r\n\t]+/gu, ' ');
 }
 
 function createCapabilities(capabilities: Capability[] | undefined): Capability[] {

@@ -25,3 +25,11 @@ export function evaluateContentLength(rawLength: string | undefined, maxBytes: n
 
   return { allowed: true };
 }
+
+export const DEFAULT_HEADERS_TIMEOUT_MS = 5_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+
+export function getHttpTimeoutMs(raw: string | undefined, fallback: number): number {
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
