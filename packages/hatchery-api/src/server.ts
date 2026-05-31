@@ -13,6 +13,7 @@ import { evaluateContentLength, getMaxBodyBytes } from '../../shared/src/http-li
 import { getAllowedOrigins, isOriginAllowed, securityHeaders } from '../../shared/src/http-security.js';
 import { normalizeRequestId } from '../../shared/src/request-id.js';
 import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../shared/src/rate-limit.js';
+import { ChannelConfigStore, isKnownChannelName } from '../../channels/src/channel-config.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 
 export interface HatcheryServerOptions {
@@ -67,6 +68,7 @@ export function createHatcheryApp(
   dataDir: string,
 ): Hono {
   const app = new Hono();
+  const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
 
   app.use('*', async (c, next) => {
     c.header('X-Request-Id', normalizeRequestId(c.req.header('x-request-id')));
@@ -257,29 +259,39 @@ export function createHatcheryApp(
   });
 
   // GET /api/channels
-  app.get('/api/channels', (c) => {
-    return c.json({
-      channels: [
-        { name: 'webchat', label: 'WebChat', status: 'active', endpoint: `http://localhost:${HATCHERY_PORT}`, pairingState: 'paired' },
-        { name: 'telegram', label: 'Telegram', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'discord', label: 'Discord', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'slack', label: 'Slack', status: 'not_configured', pairingState: 'unpaired' },
-        { name: 'whatsapp', label: 'WhatsApp', status: 'not_configured', pairingState: 'unpaired' },
-      ],
-    });
+  app.get('/api/channels', async (c) => {
+    return c.json({ channels: await channelConfig.listChannels() });
   });
 
   // POST /api/channels/:name/configure
   app.post('/api/channels/:name/configure', async (c) => {
     const { name } = c.req.param();
-    const known = new Set(['webchat', 'telegram', 'discord', 'slack', 'whatsapp']);
-    if (!known.has(name)) return c.json({ error: 'unknown channel' }, 400);
+    if (!isKnownChannelName(name)) return c.json({ error: 'unknown channel' }, 400);
     try {
       await c.req.json();
     } catch {
       return c.json({ error: 'invalid JSON' }, 400);
     }
-    return c.json({ name, status: name === 'webchat' ? 'active' : 'not_configured', pairingState: name === 'webchat' ? 'paired' : 'pending' });
+    return c.json(await channelConfig.configureChannel(name));
+  });
+
+  // POST /api/channels/:name/pairing/verify
+  app.post('/api/channels/:name/pairing/verify', async (c) => {
+    const { name } = c.req.param();
+    if (!isKnownChannelName(name)) return c.json({ error: 'unknown channel' }, 400);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const { code } = body as { code?: string };
+    if (typeof code !== 'string' || !code.trim()) {
+      return c.json({ error: 'pairing code required' }, 400);
+    }
+
+    const result = await channelConfig.verifyPairingCode(name, code);
+    return c.json(result, result.paired ? 200 : 400);
   });
 
   // GET /api/settings

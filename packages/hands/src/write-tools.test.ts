@@ -151,3 +151,26 @@ test('npmInstall validates packages and options', async () => {
     /invalid package name or specifier/,
   );
 });
+
+test('package_install receipts require approval and dispatch to npmInstall validation', async () => {
+  const { executeReceipt } = await import('./executor.js');
+  const workspace = process.cwd();
+  const baseReceipt = {
+    id: 'receipt_package_install',
+    jobId: 'job_package_install',
+    stepId: 'step_package_install',
+    tool: 'package_install',
+    capability: 'package_install' as const,
+    input: { packages: ['lodash; rm -rf'] },
+    risk: 'high' as const,
+    createdAt: new Date().toISOString(),
+  };
+
+  const denied = await executeReceipt({ ...baseReceipt, approval: 'required' as const }, workspace);
+  assert.equal(denied.status, 'failed');
+  assert.match(denied.error ?? '', /approval is required/);
+
+  const approvedButInvalid = await executeReceipt({ ...baseReceipt, approval: 'approved' as const }, workspace);
+  assert.equal(approvedButInvalid.status, 'failed');
+  assert.match(approvedButInvalid.error ?? '', /invalid package name or specifier/);
+});

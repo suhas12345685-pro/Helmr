@@ -1,7 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { evaluateToolReceipt } from '../../cortex/src/policy.js';
 import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
-import { writeWorkspaceFile, deleteWorkspaceFile, runShellWrite, gitAdd, gitCommit } from './write-tools.js';
+import {
+  writeWorkspaceFile,
+  deleteWorkspaceFile,
+  renameWorkspaceFile,
+  runShellWrite,
+  gitAdd,
+  gitCommit,
+  gitCheckout,
+  npmInstall,
+} from './write-tools.js';
 import { runShellRead, runGitStatus, runGitLog } from './shell-tools.js';
 import type { ToolReceipt, ToolResult } from '../../shared/src/index.js';
 
@@ -45,6 +54,9 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
     case 'delete_workspace_file':
       return deleteWorkspaceFile(workspacePath, input['filePath'] as string);
 
+    case 'rename_workspace_file':
+      return renameWorkspaceFile(workspacePath, input['fromPath'] as string, input['toPath'] as string);
+
     case 'shell_write':
       return runShellWrite(workspacePath, input['argv'] as string[]);
 
@@ -53,6 +65,15 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
 
     case 'git_commit':
       return gitCommit(workspacePath, input['message'] as string);
+
+    case 'git_checkout':
+      return gitCheckout(workspacePath, input['ref'] as string, input['newBranch'] === true);
+
+    case 'package_install':
+      return npmInstall(workspacePath, input['packages'] as string[], {
+        dev: input['dev'] === true,
+        exact: input['exact'] === true,
+      });
 
     default:
       throw new Error(`unknown tool: ${receipt.tool}`);

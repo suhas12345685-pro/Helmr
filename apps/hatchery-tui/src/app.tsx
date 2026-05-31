@@ -58,9 +58,16 @@ function JobRow({ job, selected }: { job: Job; selected: boolean }): React.React
   const ts = new Date(job.createdAt).toLocaleTimeString();
   return (
     <Box paddingX={1}>
+ codex/complete-end-to-end-implementation
+      <Text color={selected ? 'cyan' : 'gray'}>{selected ? '› ' : '  '}</Text>
+      <Text color={statusColor(job.status)} bold={selected}>{job.status.padEnd(18)}</Text>
+      <Text dimColor>{short}  </Text>
+      <Text dimColor>{ts}</Text>
+
       <Text color={statusColor(job.status)} bold={selected} inverse={selected}>{job.status.padEnd(18)}</Text>
       <Text dimColor={!selected} bold={selected} inverse={selected}>{short}  </Text>
       <Text dimColor={!selected} inverse={selected}>{ts}</Text>
+         main
     </Box>
   );
 }
@@ -69,9 +76,17 @@ function ApprovalRow({ approval, selected }: { approval: Approval; selected: boo
   const short = approval.jobId.slice(0, 16);
   return (
     <Box paddingX={1}>
+  
+ codex/complete-end-to-end-implementation
+      <Text color={selected ? 'cyan' : 'gray'}>{selected ? '› ' : '  '}</Text>
+      <Text bold={selected} color="yellow">{approval.kind.padEnd(10)}</Text>
+      <Text dimColor>{short}  </Text>
+      <Text dimColor>{approval.id.slice(0, 12)}</Text>
+ 
       <Text bold={selected} color="yellow" inverse={selected}>{approval.kind.padEnd(10)}</Text>
       <Text dimColor={!selected} bold={selected} inverse={selected}>{short}  </Text>
       <Text dimColor={!selected} inverse={selected}>{approval.id.slice(0, 12)}</Text>
+          main
     </Box>
   );
 }

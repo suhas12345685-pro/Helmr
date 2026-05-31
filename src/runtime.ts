@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import { normalizeCliEvent } from '../packages/gateway/src/normalize-event.js';
-import { InMemoryJobQueue } from '../packages/scheduler/src/queue.js';
-import { WorkspaceLockManager } from '../packages/scheduler/src/workspace-lock.js';
+import { SqliteWorkspaceLockManager } from '../packages/scheduler/src/sqlite-workspace-lock.js';
 import { JsonlAuditLog } from '../packages/memory/src/audit-jsonl.js';
 import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import type { HelmrStoreJob } from '../packages/memory/src/sqlite-store.js';
@@ -47,8 +46,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
   const store = new HelmrSQLiteStore(join(paths.dataDir, 'helmr.db'));
   await store.init();
 
-  const queue = new InMemoryJobQueue();
-  const locks = new WorkspaceLockManager();
+  const locks = await SqliteWorkspaceLockManager.create({ url: `file:${join(paths.dataDir, 'helmr.db')}` });
 
   log('Creating event...');
   const event = normalizeCliEvent({ text, workspacePath });
@@ -81,30 +79,26 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
     workspacePath,
   };
 
-  const queuedJob = queue.enqueue(jobBase);
   await store.upsertJob(jobBase);
 
-  await auditLog.append({ kind: 'event', jobId: queuedJob.id, createdAt: event.createdAt, data: event });
+  await auditLog.append({ kind: 'event', jobId, createdAt: event.createdAt, data: event });
+
+  log('Claiming durable job lease...');
+  const claimed = await store.claimNextJob({ leaseMs: 60_000 });
+  if (!claimed) throw new Error('failed to claim queued job');
 
   log('Acquiring workspace read lock...');
-  const lock = locks.tryAcquire({
+  const lock = await locks.acquireWithTimeout({
     workspaceId: event.workspace.id,
-    ownerId: queuedJob.id,
+    ownerId: claimed.id,
     mode: 'read',
+    ttlMs: 60_000,
+    timeoutMs: 5_000,
   });
-
-  if (!lock) {
-    throw new Error(`workspace ${event.workspace.id} is locked by another job`);
-  }
 
   let plan: HelmrPlan | undefined;
 
   try {
-    const claimed = queue.claimNext({ leaseMs: 60_000 });
-    if (!claimed) throw new Error('failed to claim queued job');
-
-    queue.markRunning(claimed.id);
-    await store.updateJobStatus(claimed.id, 'running');
 
     // 1. Plan check: See if an approved plan already exists in database
     const existingPlan = await store.getPlan(claimed.id);
@@ -112,9 +106,9 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
 
     if (!plan) {
       log('Planning...');
-      plan = await runCouncilPlanner(queuedJob.id, event.workspace.path, text);
+      plan = await runCouncilPlanner(claimed.id, event.workspace.path, text);
       await store.savePlan(plan);
-      await auditLog.append({ kind: 'plan', jobId: queuedJob.id, createdAt: new Date().toISOString(), data: plan });
+      await auditLog.append({ kind: 'plan', jobId: claimed.id, createdAt: new Date().toISOString(), data: plan });
     }
 
     log('Validating plan with Cortex...');
@@ -127,7 +121,6 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
       if (approval?.decision === 'approved') {
         log('Plan requires approval but has been APPROVED by owner. Continuing execution...');
       } else if (approval?.decision === 'denied') {
-        queue.fail(claimed.id, 'plan denied by owner');
         await store.updateJobStatus(claimed.id, 'failed', 'plan denied by owner');
         return {
           jobId: claimed.id,
@@ -139,7 +132,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
       } else {
         // Not approved yet (first time or still pending)
         log('Plan requires owner approval. Creating approval request...');
-        await store.createApproval(claimed.id, claimed.id, 'plan');
+        await store.createApproval(`approval_${claimed.id}`, claimed.id, 'plan');
         await store.updateJobStatus(claimed.id, 'awaiting_approval');
         
         return {
@@ -183,7 +176,8 @@ INSTRUCTIONS:
    For deleting a file: set tool to "delete_workspace_file" and capability to "workspace_write", and pass the relative filePath in the input object.
    For git add: set tool to "git_add" and capability to "git_write", and pass the paths in the input object.
    For git commit: set tool to "git_commit" and capability to "git_write", and pass the message in the input object.
-   For running a mutating shell command (like npm install): set tool to "shell_write" and capability to "shell_write", and pass the command in the input object.
+   For running a mutating shell command: set tool to "shell_write" and capability to "shell_write", and pass an argv string array in the input object.
+   For installing packages: set tool to "package_install" and capability to "package_install", and pass packages plus optional dev/exact booleans in the input object.
 3. If \`request_receipt\` throws an "Awaiting human approval" error, this is expected behavior. The environment will pause execution to await owner approval. Stop and let the system know you are waiting.
 4. After completing code modifications, you MUST verify that the changes compile cleanly. Use the \`shell_read\` tool to run typechecks or compiler commands (e.g. \`tsc --noEmit\` or \`npm run typecheck\`).
 5. Provide a summary of your actions once all steps are successfully completed.`;
@@ -202,8 +196,7 @@ INSTRUCTIONS:
       data: { answer },
     });
 
-    queue.complete(claimed.id);
-    await store.updateJobStatus(claimed.id, 'succeeded');
+    await store.completeJob(claimed.id);
 
     return {
       jobId: claimed.id,
@@ -215,19 +208,21 @@ INSTRUCTIONS:
     const errMsg = err instanceof Error ? err.message : String(err);
     if (errMsg.includes('Awaiting human approval')) {
       log('Awaiting human owner approval for tool execution...');
-      await store.updateJobStatus(queuedJob.id, 'awaiting_approval');
+      await store.updateJobStatus(claimed.id, 'awaiting_approval');
       return {
-        jobId: queuedJob.id,
+        jobId: claimed.id,
         answer: 'Awaiting human owner approval for tool execution.',
         plan: plan!,
         status: 'awaiting_approval',
       };
     } else {
-      await store.updateJobStatus(queuedJob.id, 'failed', errMsg);
+      await store.failJob(claimed.id, errMsg);
       throw err;
     }
   } finally {
-    locks.release(lock);
+    await locks.release(lock);
+    locks.close();
+    store.close();
   }
 }
 
@@ -284,7 +279,7 @@ async function executeReadPlan(
         input = { maxCount: 5 };
       } else {
         toolName = 'shell_read';
-        input = { command: 'node --version' };
+        input = { argv: ['node', '--version'] };
       }
     }
 
