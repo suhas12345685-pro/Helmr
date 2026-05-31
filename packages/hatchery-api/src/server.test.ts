@@ -47,7 +47,6 @@ test('hatchery keeps health public while token-protecting API routes', async () 
   }
 });
 
-         codex/complete-agent-from-end-to-end
 test('hatchery job API exposes final result and tool receipt evidence', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'helmr-hatchery-result-test-'));
   try {
@@ -120,7 +119,10 @@ test('hatchery job API exposes final result and tool receipt evidence', async ()
     assert.equal(body.job.toolReceipts?.[0]?.input, '{"limit":10}');
     assert.match(body.job.toolReceipts?.[0]?.output ?? '', /package\.json/);
   } finally {
- 
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
 test('configuring a provider persists the API key durably for restart', async () => {
   const previousKey = process.env['ANTHROPIC_API_KEY'];
   delete process.env['ANTHROPIC_API_KEY'];
@@ -149,7 +151,6 @@ test('configuring a provider persists the API key durably for restart', async ()
   } finally {
     if (previousKey === undefined) delete process.env['ANTHROPIC_API_KEY'];
     else process.env['ANTHROPIC_API_KEY'] = previousKey;
-          main
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });

@@ -27,11 +27,15 @@ interface InstallerDeps {
 
 interface InstallerOptions {
   dryRun: boolean;
+  start: boolean;
+  openHatchery: boolean;
 }
 
 export function parseInstallerArgs(args: string[]): InstallerOptions {
   return {
     dryRun: args.includes('--dry-run') || args.includes('-n'),
+    start: !args.includes('--no-start'),
+    openHatchery: !args.includes('--no-open'),
   };
 }
 
@@ -82,6 +86,12 @@ function check(label: string, passed: boolean, detail: string | undefined, deps:
   const reset = '\x1b[0m';
   const extra = detail ? `  ${detail}` : '';
   deps.log(`  ${color}${icon}${reset} ${label}${extra}`);
+}
+
+export function createOpenCommand(url: string, platform = process.platform): { command: string; args: string[] } {
+  if (platform === 'win32') return { command: 'cmd', args: ['/c', 'start', '', url] };
+  if (platform === 'darwin') return { command: 'open', args: [url] };
+  return { command: 'xdg-open', args: [url] };
 }
 
 function getDefaultDeps(): InstallerDeps {
@@ -163,27 +173,19 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
     }
   }
 
-  banner(options.dryRun ? 'Helmr dry run complete!' : 'Helmr is ready!', deps);
-  deps.log('Next steps:\n');
-  deps.log('  1. Start the daemon:');
-  deps.log('       helmr start\n');
-  deps.log('  2. Open the Hatchery WebUI:');
-  deps.log('       helmr hatchery\n');
-  deps.log('  3. Run your first job:');
-  deps.log('       helmr ask "summarize this workspace"\n');
-  deps.log('  4. Run self-test:');
-  deps.log('       helmr self-test\n');
+  banner(options.dryRun ? 'Helmr dry run complete!' : 'Helmr bootstrap complete!', deps);
 
+  const hatcheryUrl = 'http://localhost:4000';
   if (options.dryRun) {
-    deps.log('Dry run skipped daemon startup prompt and background process launch.');
-    deps.log('  Gateway  -> http://localhost:3999');
-    deps.log('  Hatchery -> http://localhost:4000\n');
+    deps.log('Dry run would start Gateway and Hatchery:');
+    deps.log('  helmr start');
+    deps.log(`Dry run would open Hatchery onboarding: ${hatcheryUrl}`);
+    deps.log('No daemon was started and no browser was opened.\n');
     return 0;
   }
 
-  const startNow = await deps.prompt('Start the daemon now? [Y/n]: ');
-  if (startNow === '' || startNow.toLowerCase() === 'y') {
-    deps.log('\nStarting Helmr daemon...');
+  if (options.start) {
+    deps.log('\nStarting Gateway and Hatchery...');
     const daemon = deps.spawn('helmr', ['start'], {
       detached: true,
       stdio: 'ignore',
@@ -192,10 +194,29 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
     daemon.unref();
     deps.log('Daemon started in background.');
     deps.log('  Gateway  -> http://localhost:3999');
-    deps.log('  Hatchery -> http://localhost:4000\n');
+    deps.log(`  Hatchery -> ${hatcheryUrl}\n`);
+  } else {
+    deps.log('\nSkipping daemon startup because --no-start was provided.');
   }
 
+  if (options.openHatchery) {
+    deps.log(`Opening Hatchery onboarding: ${hatcheryUrl}`);
+    const open = createOpenCommand(hatcheryUrl, process.platform);
+    const browser = deps.spawn(open.command, open.args, {
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env },
+    });
+    browser.unref();
+  } else {
+    deps.log(`Hatchery onboarding is available at: ${hatcheryUrl}`);
+  }
+
+  deps.log('\nNext command after onboarding:');
+  deps.log('  helmr ask "summarize this workspace"\n');
+
   return 0;
+
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
