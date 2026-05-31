@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { normalizeApiEvent } from './normalize-event.js';
+import { ChannelConfigStore } from '../../channels/src/channel-config.js';
 import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
@@ -27,14 +28,24 @@ export interface GatewayServerOptions {
   dataDir?: string;
 }
 
+export interface GatewayAppOptions {
+  dataDir?: string;
+  gatewayPort?: number;
+}
+
 const GATEWAY_PORT = 3999;
 const gatewayRateLimiter = createFixedWindowRateLimiter({
   limit: getRateLimitPerMinute(process.env['HELMR_RATE_LIMIT_PER_MINUTE']),
   windowMs: 60_000,
 });
 
-export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter): Hono {
+export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter, options: GatewayAppOptions = {}): Hono {
   const app = new Hono();
+  const channelConfig = options.dataDir
+    ? new ChannelConfigStore(options.dataDir, {
+        webchatEndpoint: `http://localhost:${options.gatewayPort ?? GATEWAY_PORT}`,
+      })
+    : null;
 
   app.use('*', async (c, next) => {
     c.header('Content-Type', 'application/json');
@@ -175,16 +186,13 @@ export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter): 
     return c.json({ error: 'configure providers from Hatchery onboarding or your runtime environment' }, 400);
   });
 
-  // GET /api/channels
-  app.get('/api/channels', (c) => {
-    return c.json({
-      channels: [
-        { id: 'webchat', kind: 'webchat', status: 'active' },
-        { id: 'telegram', kind: 'telegram', status: 'not_configured' },
-        { id: 'discord', kind: 'discord', status: 'not_configured' },
-        { id: 'slack', kind: 'slack', status: 'not_configured' },
-      ],
-    });
+  // GET /api/channels — backed by the same persisted config Hatchery uses,
+  // so the Gateway never reports a stale or contradictory channel list.
+  app.get('/api/channels', async (c) => {
+    if (!channelConfig) {
+      return c.json({ channels: [] });
+    }
+    return c.json({ channels: await channelConfig.listChannels() });
   });
 
   // GET /api/self-test
@@ -267,7 +275,7 @@ export async function startGatewayServer(options: GatewayServerOptions = {}): Pr
   await store.init();
 
   const router = new ModelRouter(DEFAULT_ROUTING);
-  const app = createGatewayApp(store, router);
+  const app = createGatewayApp(store, router, { dataDir, gatewayPort: port });
 
   // Use createAdaptorServer so we can attach WebSocket to the same http.Server
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

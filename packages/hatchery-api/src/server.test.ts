@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { ConfigFileManager } from '../../config/src/config-files.js';
+import { SecretStore } from '../../config/src/secret-store.js';
 import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
@@ -46,6 +47,7 @@ test('hatchery keeps health public while token-protecting API routes', async () 
   }
 });
 
+         codex/complete-agent-from-end-to-end
 test('hatchery job API exposes final result and tool receipt evidence', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'helmr-hatchery-result-test-'));
   try {
@@ -118,6 +120,36 @@ test('hatchery job API exposes final result and tool receipt evidence', async ()
     assert.equal(body.job.toolReceipts?.[0]?.input, '{"limit":10}');
     assert.match(body.job.toolReceipts?.[0]?.output ?? '', /package\.json/);
   } finally {
+ 
+test('configuring a provider persists the API key durably for restart', async () => {
+  const previousKey = process.env['ANTHROPIC_API_KEY'];
+  delete process.env['ANTHROPIC_API_KEY'];
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-provider-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const configDir = join(dir, 'config');
+    const config = new ConfigFileManager(configDir);
+    await config.init();
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+
+    const res = await app.request('/api/providers/anthropic/configure', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': 'provider-configure' },
+      body: JSON.stringify({ apiKey: '  sk-live-key  ' }),
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { name: 'anthropic', configured: true });
+
+    // Applied to the live process immediately (trimmed)...
+    assert.equal(process.env['ANTHROPIC_API_KEY'], 'sk-live-key');
+    // ...and persisted to disk so a future process can restore it.
+    const persisted = await new SecretStore(configDir).get('ANTHROPIC_API_KEY');
+    assert.equal(persisted, 'sk-live-key');
+  } finally {
+    if (previousKey === undefined) delete process.env['ANTHROPIC_API_KEY'];
+    else process.env['ANTHROPIC_API_KEY'] = previousKey;
+          main
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });

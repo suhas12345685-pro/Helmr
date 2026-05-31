@@ -1,0 +1,40 @@
+# Helmr self-hosted control plane.
+#
+# Before `docker compose up`, create a .env file beside this one with at least:
+#   HELMR_API_TOKEN=<32+ character random token>      # openssl rand -hex 24
+#   HELMR_ALLOWED_ORIGINS=https://hatchery.example.com  # comma-separated HTTPS origins
+#   HELMR_MODEL=anthropic/claude-sonnet-4-5             # provider/model from onboarding
+#   ANTHROPIC_API_KEY=...                               # (or another provider key)
+#
+# The production gate (`helmr self-test` with HELMR_PRODUCTION=true) fails fast
+# if the token is missing/short, origins are wildcarded, or limits are unsafe.
+
+services:
+  helmr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: helmr:latest
+    restart: unless-stopped
+    ports:
+      - "3999:3999" # Gateway (intake API — token-gated)
+      - "4000:4000" # Hatchery API (dashboard/approvals — token-gated, CORS-restricted)
+    environment:
+      HELMR_PRODUCTION: "true"
+      HELMR_API_TOKEN: "${HELMR_API_TOKEN:?set HELMR_API_TOKEN in .env (32+ chars)}"
+      HELMR_ALLOWED_ORIGINS: "${HELMR_ALLOWED_ORIGINS:?set HELMR_ALLOWED_ORIGINS in .env}"
+      HELMR_MODEL: "${HELMR_MODEL:-}"
+      HELMR_MAX_BODY_BYTES: "${HELMR_MAX_BODY_BYTES:-1048576}"
+      HELMR_RATE_LIMIT_PER_MINUTE: "${HELMR_RATE_LIMIT_PER_MINUTE:-120}"
+      # Provider keys are passed through if present in the environment / .env.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GOOGLE_GENERATIVE_AI_API_KEY: "${GOOGLE_GENERATIVE_AI_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      XAI_API_KEY: "${XAI_API_KEY:-}"
+      PERPLEXITY_API_KEY: "${PERPLEXITY_API_KEY:-}"
+    volumes:
+      - helmr-state:/var/lib/helmr
+
+volumes:
+  helmr-state:
