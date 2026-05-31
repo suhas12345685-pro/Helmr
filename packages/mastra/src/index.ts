@@ -4,13 +4,14 @@ import { councilAgent } from './agents/council.agent.js';
 import { codingAgent } from './agents/coding.agent.js';
 import { researchAgent } from './agents/research.agent.js';
 import { fastAgent } from './agents/fast.agent.js';
+import { browserAgent } from './agents/browser.agent.js';
 import { planningWorkflow } from './workflows/planning.workflow.js';
 import { executionWorkflow } from './workflows/execution.workflow.js';
 import { intakeWorkflow } from './workflows/intake.workflow.js';
 import { reviewWorkflow } from './workflows/review.workflow.js';
 import { deliveryWorkflow } from './workflows/delivery.workflow.js';
 
-export { councilAgent, codingAgent, researchAgent, fastAgent };
+export { councilAgent, codingAgent, researchAgent, fastAgent, browserAgent };
 export { planningWorkflow, executionWorkflow, intakeWorkflow, reviewWorkflow, deliveryWorkflow };
 export { readWorkspaceTool, readWorkspaceFileTool } from './tools/read-workspace.tool.js';
 export { shellReadTool, gitStatusTool, gitLogTool } from './tools/shell-read.tool.js';
@@ -24,6 +25,7 @@ export const mastra = new Mastra({
     coding: codingAgent,
     research: researchAgent,
     fast: fastAgent,
+    browser: browserAgent,
   },
   workflows: {
     planning: planningWorkflow,
