@@ -1,5 +1,5 @@
 import { createClient, type Client } from '@libsql/client';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { HelmrJob, HelmrPlan, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
 
@@ -29,15 +29,22 @@ export type HelmrStoreJob = HelmrJob & {
 };
 
 export class HelmrSQLiteStore {
-  private db: Client;
+  private db?: Client;
 
-  constructor(private readonly dbPath: string) {
-    this.db = createClient({ url: `file:${dbPath}` });
+  constructor(private readonly dbPath: string) {}
+
+  private get client(): Client {
+    if (!this.db) {
+      throw new Error('HelmrSQLiteStore.init() must be called before use');
+    }
+    return this.db;
   }
 
   async init(): Promise<void> {
-    await mkdir(join(this.dbPath, '..'), { recursive: true });
-    await this.db.executeMultiple(`
+    await mkdir(dirname(this.dbPath), { recursive: true });
+    this.db?.close();
+    this.db = createClient({ url: `file:${this.dbPath}` });
+    await this.client.executeMultiple(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
         applied_at TEXT NOT NULL
@@ -111,20 +118,96 @@ export class HelmrSQLiteStore {
   }
 
   async getSchemaVersion(): Promise<number> {
-    const rs = await this.db.execute('SELECT MAX(version) AS version FROM schema_migrations');
+    const rs = await this.client.execute('SELECT MAX(version) AS version FROM schema_migrations');
     const version = rs.rows[0]?.['version'];
     return typeof version === 'number' ? version : 0;
   }
 
+  async claimNextJob(options: { leaseMs: number; now?: Date }): Promise<HelmrStoreJob | undefined> {
+    const now = options.now ?? new Date();
+    const nowIso = now.toISOString();
+    const leaseUntil = new Date(now.getTime() + options.leaseMs).toISOString();
+
+    const tx = await this.client.transaction('write');
+    try {
+      const candidate = await tx.execute({
+        sql: `SELECT * FROM jobs
+              WHERE (status = 'queued' OR (status IN ('running','planning') AND lease_until IS NOT NULL AND lease_until <= ?))
+              ORDER BY priority DESC, created_at ASC
+              LIMIT 1`,
+        args: [nowIso],
+      });
+      const row = candidate.rows[0] as unknown as JobRow | undefined;
+      if (!row) {
+        await tx.rollback();
+        return undefined;
+      }
+
+      if (row.attempts >= row.max_attempts) {
+        await tx.execute({
+          sql: `UPDATE jobs SET status='failed', updated_at=?, lease_until=NULL, last_error=? WHERE id=?`,
+          args: [nowIso, 'max attempts exceeded', row.id],
+        });
+        await tx.commit();
+        return undefined;
+      }
+
+      const nextAttempts = row.attempts + 1;
+      const update = await tx.execute({
+        sql: `UPDATE jobs
+              SET status = 'running', attempts = ?, lease_until = ?, updated_at = ?, last_error = NULL
+              WHERE id = ?
+                AND (status = 'queued' OR (status IN ('running','planning') AND lease_until IS NOT NULL AND lease_until <= ?))`,
+        args: [nextAttempts, leaseUntil, nowIso, row.id, nowIso],
+      });
+
+      if (Number(update.rowsAffected ?? 0) !== 1) {
+        await tx.rollback();
+        return undefined;
+      }
+
+      await tx.commit();
+      return this.getJob(row.id);
+    } catch (err) {
+      try {
+        await tx.rollback();
+      } catch {
+        // Preserve the original claim error.
+      }
+      throw err;
+    }
+  }
+
+  async completeJob(id: string, now = new Date()): Promise<void> {
+    await this.client.execute({
+      sql: `UPDATE jobs SET status='succeeded', updated_at=?, lease_until=NULL, last_error=NULL WHERE id=?`,
+      args: [now.toISOString(), id],
+    });
+  }
+
+  async failJob(id: string, error: string, now = new Date()): Promise<void> {
+    const current = await this.getJob(id);
+    if (!current) return;
+    const retryable = current.attempts < current.maxAttempts;
+    await this.client.execute({
+      sql: `UPDATE jobs SET status=?, updated_at=?, lease_until=NULL, last_error=? WHERE id=?`,
+      args: [retryable ? 'queued' : 'failed', now.toISOString(), error, id],
+    });
+  }
+
+  close(): void {
+    this.client.close();
+  }
+
   private async recordSchemaVersion(version: number): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: 'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
       args: [version, new Date().toISOString()],
     });
   }
 
   async upsertJob(job: HelmrStoreJob): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: `INSERT OR REPLACE INTO jobs
         (id,event_id,workspace_id,status,lane,priority,attempts,max_attempts,created_at,updated_at,lease_until,last_error,payload_text,workspace_path)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -148,7 +231,7 @@ export class HelmrSQLiteStore {
     }
 
     const nextLease = new Date(now.getTime() + leaseMs).toISOString();
-    const rs = await this.db.execute({
+    const rs = await this.client.execute({
       sql: `UPDATE jobs
             SET lease_until=?, updated_at=?
             WHERE id=?
@@ -162,14 +245,14 @@ export class HelmrSQLiteStore {
   async updateJobStatus(id: string, status: HelmrJob['status'], error?: string): Promise<void> {
     const now = new Date().toISOString();
     if (status === 'running') {
-      await this.db.execute({
+      await this.client.execute({
         sql: 'UPDATE jobs SET status=?, updated_at=?, last_error=? WHERE id=?',
         args: [status, now, error ?? null, id],
       });
       return;
     }
 
-    await this.db.execute({
+    await this.client.execute({
       sql: `UPDATE jobs
             SET status=?,
                 updated_at=?,
@@ -181,7 +264,7 @@ export class HelmrSQLiteStore {
   }
 
   async getJob(id: string): Promise<HelmrStoreJob | undefined> {
-    const rs = await this.db.execute({ sql: 'SELECT * FROM jobs WHERE id=?', args: [id] });
+    const rs = await this.client.execute({ sql: 'SELECT * FROM jobs WHERE id=?', args: [id] });
     const row = rs.rows[0];
     if (!row) return undefined;
     return rowToJob(row as unknown as JobRow);
@@ -193,25 +276,25 @@ export class HelmrSQLiteStore {
     if (opts.status) { conditions.push('status=?'); args.push(opts.status); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = opts.limit ?? 100;
-    const rs = await this.db.execute({ sql: `SELECT * FROM jobs ${where} ORDER BY priority DESC, created_at ASC LIMIT ?`, args: [...args, limit] as import('@libsql/client').InValue[] });
+    const rs = await this.client.execute({ sql: `SELECT * FROM jobs ${where} ORDER BY priority DESC, created_at ASC LIMIT ?`, args: [...args, limit] as import('@libsql/client').InValue[] });
     return rs.rows.map((r) => rowToJob(r as unknown as JobRow));
   }
 
   async savePlan(plan: HelmrPlan): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: 'INSERT OR REPLACE INTO plans (id,job_id,data,created_at) VALUES (?,?,?,?)',
       args: [plan.id, plan.jobId, JSON.stringify(plan), new Date().toISOString()],
     });
   }
 
   async getPlan(jobId: string): Promise<HelmrPlan | undefined> {
-    const rs = await this.db.execute({ sql: 'SELECT data FROM plans WHERE job_id=? ORDER BY created_at DESC LIMIT 1', args: [jobId] });
+    const rs = await this.client.execute({ sql: 'SELECT data FROM plans WHERE job_id=? ORDER BY created_at DESC LIMIT 1', args: [jobId] });
     if (!rs.rows[0]) return undefined;
     return JSON.parse(rs.rows[0]['data'] as string) as HelmrPlan;
   }
 
   async saveReceipt(receipt: ToolReceipt): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: `INSERT OR REPLACE INTO receipts (id,job_id,step_id,tool,capability,input,risk,approval,created_at)
             VALUES (?,?,?,?,?,?,?,?,?)`,
       args: [receipt.id, receipt.jobId, receipt.stepId, receipt.tool, receipt.capability,
@@ -220,11 +303,11 @@ export class HelmrSQLiteStore {
   }
 
   async updateReceiptApproval(id: string, approval: ToolReceipt['approval']): Promise<void> {
-    await this.db.execute({ sql: 'UPDATE receipts SET approval=? WHERE id=?', args: [approval, id] });
+    await this.client.execute({ sql: 'UPDATE receipts SET approval=? WHERE id=?', args: [approval, id] });
   }
 
   async getReceipt(id: string): Promise<ToolReceipt | undefined> {
-    const rs = await this.db.execute({ sql: 'SELECT * FROM receipts WHERE id=?', args: [id] });
+    const rs = await this.client.execute({ sql: 'SELECT * FROM receipts WHERE id=?', args: [id] });
     const row = rs.rows[0];
     if (!row) return undefined;
     return {
@@ -241,7 +324,7 @@ export class HelmrSQLiteStore {
   }
 
   async getReceiptByStep(jobId: string, stepId: string): Promise<ToolReceipt | undefined> {
-    const rs = await this.db.execute({
+    const rs = await this.client.execute({
       sql: 'SELECT * FROM receipts WHERE job_id=? AND step_id=? ORDER BY created_at DESC LIMIT 1',
       args: [jobId, stepId]
     });
@@ -261,7 +344,7 @@ export class HelmrSQLiteStore {
   }
 
   async getApprovalForReceipt(jobId: string, receiptId: string): Promise<{ decision: 'approved' | 'denied' | null } | undefined> {
-    const rs = await this.db.execute({
+    const rs = await this.client.execute({
       sql: 'SELECT decision FROM approvals WHERE job_id=? AND receipt_id=? LIMIT 1',
       args: [jobId, receiptId]
     });
@@ -271,7 +354,7 @@ export class HelmrSQLiteStore {
   }
 
   async getResultForReceipt(receiptId: string): Promise<ToolResult | undefined> {
-    const rs = await this.db.execute({
+    const rs = await this.client.execute({
       sql: 'SELECT * FROM results WHERE receipt_id=? LIMIT 1',
       args: [receiptId]
     });
@@ -289,7 +372,7 @@ export class HelmrSQLiteStore {
   }
 
   async getPendingApprovals(): Promise<{ id: string; jobId: string; kind: string; createdAt: string }[]> {
-    const rs = await this.db.execute({
+    const rs = await this.client.execute({
       sql: `SELECT a.id, a.job_id, a.kind, a.created_at FROM approvals a
             WHERE a.decision IS NULL ORDER BY a.created_at ASC`,
       args: [],
@@ -303,21 +386,21 @@ export class HelmrSQLiteStore {
   }
 
   async createApproval(id: string, jobId: string, kind: 'plan' | 'receipt', receiptId?: string): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: 'INSERT OR IGNORE INTO approvals (id,job_id,receipt_id,kind,created_at) VALUES (?,?,?,?,?)',
       args: [id, jobId, receiptId ?? null, kind, new Date().toISOString()],
     });
   }
 
   async decideApproval(id: string, decision: 'approved' | 'denied'): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: 'UPDATE approvals SET decision=?, decided_at=? WHERE id=?',
       args: [decision, new Date().toISOString(), id],
     });
   }
 
   async getApproval(id: string): Promise<{ decision: 'approved' | 'denied' | null; jobId: string } | undefined> {
-    const rs = await this.db.execute({ sql: 'SELECT decision, job_id FROM approvals WHERE id=?', args: [id] });
+    const rs = await this.client.execute({ sql: 'SELECT decision, job_id FROM approvals WHERE id=?', args: [id] });
     const row = rs.rows[0];
     if (!row) return undefined;
     return {
@@ -327,14 +410,14 @@ export class HelmrSQLiteStore {
   }
 
   async getApprovalByJob(jobId: string, kind: 'plan' | 'receipt'): Promise<{ decision: 'approved' | 'denied' | null } | undefined> {
-    const rs = await this.db.execute({ sql: 'SELECT decision FROM approvals WHERE job_id=? AND kind=? ORDER BY created_at DESC LIMIT 1', args: [jobId, kind] });
+    const rs = await this.client.execute({ sql: 'SELECT decision FROM approvals WHERE job_id=? AND kind=? ORDER BY created_at DESC LIMIT 1', args: [jobId, kind] });
     const row = rs.rows[0];
     if (!row) return undefined;
     return { decision: (row['decision'] as 'approved' | 'denied' | null) ?? null };
   }
 
   async saveResult(result: ToolResult): Promise<void> {
-    await this.db.execute({
+    await this.client.execute({
       sql: `INSERT OR REPLACE INTO results (id,receipt_id,job_id,status,output,error,created_at)
             VALUES (?,?,?,?,?,?,?)`,
       args: [result.id, result.receiptId, result.jobId, result.status,

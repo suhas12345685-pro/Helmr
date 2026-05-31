@@ -54,11 +54,11 @@ function statusColor(status: JobStatus): string {
 }
 
 function JobRow({ job, selected }: { job: Job; selected: boolean }): React.ReactElement {
-  const bg = selected ? 'blue' : undefined;
   const short = job.id.slice(0, 16);
   const ts = new Date(job.createdAt).toLocaleTimeString();
   return (
-    <Box backgroundColor={bg} paddingX={1}>
+    <Box paddingX={1}>
+      <Text color={selected ? 'cyan' : 'gray'}>{selected ? '› ' : '  '}</Text>
       <Text color={statusColor(job.status)} bold={selected}>{job.status.padEnd(18)}</Text>
       <Text dimColor>{short}  </Text>
       <Text dimColor>{ts}</Text>
@@ -67,10 +67,10 @@ function JobRow({ job, selected }: { job: Job; selected: boolean }): React.React
 }
 
 function ApprovalRow({ approval, selected }: { approval: Approval; selected: boolean }): React.ReactElement {
-  const bg = selected ? 'blue' : undefined;
   const short = approval.jobId.slice(0, 16);
   return (
-    <Box backgroundColor={bg} paddingX={1}>
+    <Box paddingX={1}>
+      <Text color={selected ? 'cyan' : 'gray'}>{selected ? '› ' : '  '}</Text>
       <Text bold={selected} color="yellow">{approval.kind.padEnd(10)}</Text>
       <Text dimColor>{short}  </Text>
       <Text dimColor>{approval.id.slice(0, 12)}</Text>

@@ -1,3 +1,7 @@
+import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createClient } from '@libsql/client';
 import { evaluatePlan } from '../packages/cortex/src/policy.js';
 import { getProductionReadinessChecks } from './production-readiness.js';
@@ -9,8 +13,10 @@ export interface SelfTestResult {
   detail?: string;
 }
 
-export async function runSelfTest(): Promise<SelfTestResult[]> {
-  const checks: SelfTestResult[] = [...getProductionReadinessChecks()];
+export type SelfTestEnv = Record<string, string | undefined>;
+
+export async function runSelfTest(env: SelfTestEnv = process.env): Promise<SelfTestResult[]> {
+  const checks: SelfTestResult[] = [...getProductionReadinessChecks(env)];
 
   const nodeMajor = parseInt(process.versions.node.split('.')[0] ?? '0', 10);
   checks.push({
@@ -20,12 +26,27 @@ export async function runSelfTest(): Promise<SelfTestResult[]> {
   });
 
   try {
-    const { execSync } = await import('node:child_process');
     const version = execSync('npm --version', { timeout: 5000 }).toString().trim();
     checks.push({ name: 'npm_version', passed: true, detail: version });
   } catch {
     checks.push({ name: 'npm_version', passed: false, detail: 'npm not found on PATH' });
   }
+
+  try {
+    const version = execSync('git --version', { timeout: 5000 }).toString().trim();
+    checks.push({ name: 'git_version', passed: true, detail: version });
+  } catch {
+    checks.push({ name: 'git_version', passed: false, detail: 'git not found on PATH' });
+  }
+
+  const helmrPaths = getHelmrPaths(env);
+  checks.push(await checkWritableDirectory('data_dir_writable', helmrPaths.dataDir));
+  checks.push(await checkWritableDirectory('config_dir_writable', helmrPaths.configDir));
+  checks.push(await checkWritableDirectory('audit_dir_writable', helmrPaths.auditDir));
+
+  const urlHints = getServiceUrlHints(env);
+  checks.push({ name: 'gateway_url_hint', passed: true, detail: urlHints.gateway });
+  checks.push({ name: 'hatchery_url_hint', passed: true, detail: urlHints.hatchery });
 
   try {
     const db = createClient({ url: 'file::memory:' });
@@ -65,7 +86,7 @@ export async function runSelfTest(): Promise<SelfTestResult[]> {
 
   try {
     const { summarizeWorkspace } = await import('../packages/hands/src/read-tools.js');
-    const summary = await summarizeWorkspace(getHelmrPaths().rootDir);
+    const summary = await summarizeWorkspace(helmrPaths.rootDir);
     checks.push({ name: 'hands_read', passed: true, detail: `${summary.files.length} files visible in Helmr state dir` });
   } catch {
     checks.push({ name: 'hands_read', passed: true, detail: 'Helmr state dir not yet initialised (ok on first run)' });
@@ -73,7 +94,7 @@ export async function runSelfTest(): Promise<SelfTestResult[]> {
 
   try {
     const { JsonlAuditLog } = await import('../packages/memory/src/audit-jsonl.js');
-    const audit = new JsonlAuditLog(getHelmrPaths().auditDir);
+    const audit = new JsonlAuditLog(helmrPaths.auditDir);
     const verification = await audit.verifyJob('__self_test_empty__');
     checks.push({
       name: 'audit_verifier',
@@ -85,6 +106,35 @@ export async function runSelfTest(): Promise<SelfTestResult[]> {
   }
 
   return checks;
+}
+
+export function getServiceUrlHints(env: SelfTestEnv = process.env): { gateway: string; hatchery: string } {
+  const gateway = env.HELMR_GATEWAY_URL?.trim() || `http://localhost:${env.HELMR_GATEWAY_PORT?.trim() || '3999'}`;
+  const hatchery = env.HELMR_HATCHERY_URL?.trim() || `http://localhost:${env.HELMR_HATCHERY_PORT?.trim() || '4000'}`;
+  return { gateway, hatchery };
+}
+
+async function checkWritableDirectory(name: string, dir: string): Promise<SelfTestResult> {
+  const probePath = join(dir, `.helmr-self-test-${randomUUID()}.tmp`);
+
+  try {
+    await mkdir(dir, { recursive: true });
+    await writeFile(probePath, 'helmr self-test write probe\n', { flag: 'wx' });
+    await unlink(probePath);
+    return { name, passed: true, detail: dir };
+  } catch (err) {
+    try {
+      await unlink(probePath);
+    } catch {
+      // Best-effort cleanup only. The failed write check below carries the actionable detail.
+    }
+
+    return {
+      name,
+      passed: false,
+      detail: `${dir} is not writable: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 }
 
 export function formatSelfTestResults(results: SelfTestResult[]): string {
