@@ -26,9 +26,22 @@ Everything Helmr must not lose lives under one directory tree:
 - `$HELMR_DATA_DIR/helmr.db` — SQLite control-plane state (jobs, plans,
   approvals, receipts, results, schema version, workspace locks).
 - `$HELMR_AUDIT_DIR/*.jsonl` — append-only, hash-chained audit evidence.
-- `$HELMR_CONFIG_DIR` — markdown policy/config and channel pairing.
+- `$HELMR_CONFIG_DIR` — markdown policy/config, channel pairing, and
+  `secrets.json` (owner-only, 0600) holding provider API keys configured via
+  Hatchery onboarding.
 
 In the container these default to `/var/lib/helmr`, mounted as a named volume.
+
+## Provider keys: environment vs. persisted store
+
+Provider keys can be supplied two ways, and both survive a restart:
+
+- **Environment** — set in `.env` / the systemd `EnvironmentFile`. These always
+  take precedence.
+- **Hatchery onboarding** — keys entered in the UI are persisted to
+  `secrets.json` under the config directory and restored into the environment
+  at startup. Keep the config directory on durable storage (the volume above)
+  and back it up; treat `secrets.json` as sensitive.
 
 ## Option A — Docker / Compose
 

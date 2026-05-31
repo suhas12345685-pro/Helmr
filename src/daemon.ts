@@ -23,6 +23,7 @@ import {
 } from '../packages/scheduler/src/index.js';
 import type { HelmrEvent } from '../packages/shared/src/index.js';
 import { getHelmrPaths } from './paths.js';
+import { loadPersistedSecrets } from './secrets.js';
 
 const HEAL_INTERVAL_MS = 15_000;
 const DREAM_IDLE_TICKS = 5; // ~10s idle at the 2s worker tick
@@ -78,6 +79,9 @@ export async function startDaemon(
 ): Promise<void> {
   await mkdir(helmrDir, { recursive: true });
 
+  // Restore provider keys persisted via Hatchery onboarding before agents run.
+  const restoredSecrets = await loadPersistedSecrets();
+
   const logFile = getLogFile(service);
   const pidServices = getDaemonPidServices(service);
 
@@ -107,6 +111,9 @@ export async function startDaemon(
   };
 
   log(`Starting ${service} daemon (pid ${process.pid})`);
+  if (restoredSecrets.length > 0) {
+    log(`Restored ${restoredSecrets.length} persisted provider key(s): ${restoredSecrets.join(', ')}`);
+  }
 
   for (const pidService of pidServices) {
     await writePid(pidService, { pid: process.pid, gatewayPort, hatcheryPort });

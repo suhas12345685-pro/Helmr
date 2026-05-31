@@ -127,6 +127,11 @@ English
 export class ConfigFileManager {
   constructor(private readonly configDir: string) {}
 
+  /** Absolute path of the config directory this manager owns. */
+  get dir(): string {
+    return this.configDir;
+  }
+
   async init(): Promise<void> {
     await mkdir(this.configDir, { recursive: true });
     for (const name of Object.keys(TEMPLATES) as ConfigFileName[]) {

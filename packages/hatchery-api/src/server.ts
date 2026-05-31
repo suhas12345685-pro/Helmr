@@ -7,6 +7,7 @@ import { HelmrSQLiteStore, type HelmrStoreJob } from '../../memory/src/sqlite-st
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING, saveRoutingConfig, type ModelRoute, type TaskKind } from '../../router/src/routing-config.js';
 import { ConfigFileManager } from '../../config/src/config-files.js';
+import { SecretStore } from '../../config/src/secret-store.js';
 import type { HelmrPlan } from '../../shared/src/index.js';
 import { evaluateApiAuth } from '../../shared/src/http-auth.js';
 import { evaluateContentLength, getMaxBodyBytes } from '../../shared/src/http-limits.js';
@@ -71,6 +72,7 @@ export function createHatcheryApp(
   const app = new Hono();
   const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
   const dreamJournal = new DreamJournal(dataDir);
+  const secrets = new SecretStore(configManager.dir);
 
   app.use('*', async (c, next) => {
     c.header('X-Request-Id', normalizeRequestId(c.req.header('x-request-id')));
@@ -237,7 +239,11 @@ export function createHatcheryApp(
     }
     const { apiKey } = body as { apiKey?: string };
     if (provider.envKey && typeof apiKey === 'string' && apiKey.trim()) {
-      process.env[provider.envKey] = apiKey.trim();
+      const trimmed = apiKey.trim();
+      // Apply to the live process immediately and persist it durably so the
+      // key survives a daemon restart (loaded back at startup).
+      process.env[provider.envKey] = trimmed;
+      await secrets.set(provider.envKey, trimmed);
     }
     return c.json({ name, configured: provider.name === 'ollama' || Boolean(provider.envKey && process.env[provider.envKey]) });
   });
@@ -413,6 +419,9 @@ export async function startHatcheryServer(options: HatcheryServerOptions = {}): 
 
   const configManager = new ConfigFileManager(configDir);
   await configManager.init();
+
+  // Restore persisted provider keys into the environment before serving.
+  await new SecretStore(configDir).loadInto(process.env);
 
   const app = createHatcheryApp(store, router, configManager, dataDir);
   const nodeServer = serve({ fetch: app.fetch, port });
