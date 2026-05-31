@@ -14,6 +14,7 @@ import { getAllowedOrigins, isOriginAllowed, securityHeaders } from '../../share
 import { normalizeRequestId } from '../../shared/src/request-id.js';
 import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../shared/src/rate-limit.js';
 import { ChannelConfigStore, isKnownChannelName } from '../../channels/src/channel-config.js';
+import { DreamJournal } from '../../memory/src/dream.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 
 export interface HatcheryServerOptions {
@@ -69,6 +70,7 @@ export function createHatcheryApp(
 ): Hono {
   const app = new Hono();
   const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
+  const dreamJournal = new DreamJournal(dataDir);
 
   app.use('*', async (c, next) => {
     c.header('X-Request-Id', normalizeRequestId(c.req.header('x-request-id')));
@@ -154,6 +156,13 @@ export function createHatcheryApp(
     if (!job) return c.json({ error: 'not found' }, 404);
     const plan = await store.getPlan(job.id);
     return c.json({ job: toUiJob(job, plan ?? null), plan: plan ?? null });
+  });
+
+  // GET /api/dreams — idle-time reflections, newest first
+  app.get('/api/dreams', async (c) => {
+    const limit = Number(c.req.query('limit') ?? '20');
+    const dreams = await dreamJournal.list(Number.isFinite(limit) ? limit : 20);
+    return c.json({ dreams });
   });
 
   // GET /api/approvals

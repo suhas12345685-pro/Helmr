@@ -74,6 +74,11 @@ export class ChannelSupervisor {
       .map((adapter) => adapter.getInfo());
   }
 
+  /** Live adapters under supervision (used by self-healing to restart failures). */
+  getAdapters(): readonly ChannelAdapter[] {
+    return this.adapters;
+  }
+
   private record(adapter: ChannelAdapter, started: boolean, reason?: string): void {
     this.results.push({ kind: adapter.kind, name: adapter.name, started, reason });
   }

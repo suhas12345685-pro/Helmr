@@ -15,4 +15,6 @@ export { ChannelSupervisor } from './supervisor.js';
 export type { ChannelSupervisorDeps, SupervisedChannel } from './supervisor.js';
 export { buildConfiguredAdapters } from './adapter-factory.js';
 export type { ChannelEnv, BuildAdaptersParams } from './adapter-factory.js';
+export { createChannelHealingProbe, createChannelRemediation } from './channel-healing.js';
+export type { ChannelHealingSource } from './channel-healing.js';
 export * from './channel-config.js';
