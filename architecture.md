@@ -16,14 +16,15 @@ Helmr is not just an LLM wrapper. It is a controlled runtime around agents. The 
 
 ## 1. Current Project State
 
-The workspace currently contains:
+The workspace has moved beyond the original placeholder scaffold into an implemented local-first Helmr spine. It currently contains:
 
-- `architecture.md`, this blueprint.
-- `package.json`, npm project metadata.
-- `package-lock.json`, installed dependency lockfile.
-- `tsconfig.json`, TypeScript configuration.
-- `src/index.ts`, placeholder TypeScript entrypoint.
-- `node_modules`, installed packages.
+- `architecture.md`, this blueprint and implementation-status reference.
+- `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `pnpm-workspace.yaml`, and workspace-aware verification scripts.
+- `src/`, including the CLI, daemon/runtime entrypoints, self-test, local planner fallback, and production-readiness helpers.
+- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, and `packages/create-helmr`.
+- `apps/hatchery-web` and `apps/hatchery-tui`.
+- `docs/`, `deploy/`, `scripts/install.sh` / `scripts/install.ps1`, and user service install helpers production/deployment support files.
+- `node_modules`, installed packages for local development and verification.
 
 Installed latest package set from the current npm registry:
 
@@ -54,7 +55,7 @@ Installed model provider packages:
 @ai-sdk/xai
 ```
 
-Verification already performed:
+Verification performed after completing the current implementation cleanup:
 
 ```powershell
 npx mastra --version
@@ -62,6 +63,12 @@ npx mastra --version
 
 npm run typecheck
 # passes
+
+npm test
+# passes: 177 tests
+
+npm run verify
+# passes: typecheck, unit/integration/e2e tests, Hatchery Web build, Hatchery TUI build, create-helmr tests
 ```
 
 Known issue:
@@ -72,6 +79,8 @@ There is no direct npm audit fix available at the time of this research.
 ```
 
 Decision: Mastra is safe to make part of the core architecture. Nucleoid should stay optional and experimental until its dependency and package maturity improve.
+
+Implementation status note: the repo-contained architecture items are implemented and verified locally. External release operations, such as publishing `helmr` / `create-helmr` to npm and hosting `install.sh` / `install.ps1` at `helmr.ai`, remain release tasks outside this repository checkout.
 
 ---
 

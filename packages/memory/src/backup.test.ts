@@ -45,6 +45,7 @@ test('backup and restore preserves SQLite state, audit chains, and config files'
       lastError: undefined,
       payloadText: 'verify backup and restore',
       workspacePath: '/workspace/project',
+      finalResult: undefined,
     });
 
     const plan: HelmrPlan = {
@@ -134,6 +135,7 @@ test('backup and restore preserves SQLite state, audit chains, and config files'
       lastError: undefined,
       payloadText: 'verify backup and restore',
       workspacePath: '/workspace/project',
+      finalResult: undefined,
     });
     assert.deepEqual(await restoredStore.getPlan('job_backup'), plan);
     assert.deepEqual(await restoredStore.getReceipt('receipt_backup'), receipt);

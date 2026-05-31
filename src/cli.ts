@@ -5,6 +5,7 @@ import { runSelfTest, printSelfTestResults } from './self-test.js';
 import { startDaemon, stopDaemon, daemonStatus } from './daemon.js';
 import { getHelmrPaths } from './paths.js';
 import { loadPersistedSecrets } from './secrets.js';
+import { formatServiceInstallPlan, installHelmrService, type ServiceInstallTarget } from './service-install.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -24,6 +25,7 @@ Usage:
   helmr start all             Start Gateway and Hatchery daemons
   helmr stop                  Stop all background daemons
   helmr channels add          Add a new communication channel
+  helmr install-service        Install user-level service integration
   helmr help                  Show this help
 
 Options:
@@ -37,6 +39,8 @@ Examples:
   helmr start hatchery
   helmr stop
   helmr channels add --channel slack-support --method Slack
+  helmr install-service --wsl2 --dry-run
+  helmr install-service --windows --dry-run
   helmr self-test
 `);
 }
@@ -113,6 +117,28 @@ async function main(): Promise<void> {
     exec(openCmd, (err) => {
       if (err) console.log(`Could not open browser. Visit ${url} manually.`);
     });
+    return;
+  }
+
+
+  if (command === 'install-service') {
+    const target: ServiceInstallTarget | undefined = args.includes('--windows')
+      ? 'windows'
+      : args.includes('--wsl2')
+        ? 'wsl2'
+        : process.platform === 'win32'
+          ? 'windows'
+          : 'wsl2';
+    const dryRun = args.includes('--dry-run');
+    const plan = await installHelmrService({ target, dryRun });
+    console.log(formatServiceInstallPlan(plan));
+    if (dryRun) {
+      console.log('Dry run only: no service files were written and no service command was executed.');
+    } else if (target === 'wsl2') {
+      console.log('Run the listed systemctl commands to enable and start Helmr.');
+    } else {
+      console.log('Run the listed schtasks commands in PowerShell to register and start Helmr.');
+    }
     return;
   }
 
