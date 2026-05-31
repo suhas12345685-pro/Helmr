@@ -21,7 +21,7 @@ The workspace has moved beyond the original placeholder scaffold into an impleme
 - `architecture.md`, this blueprint and implementation-status reference.
 - `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `pnpm-workspace.yaml`, and workspace-aware verification scripts.
 - `src/`, including the CLI, daemon/runtime entrypoints, self-test, local planner fallback, and production-readiness helpers.
-- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, and `packages/create-helmr`.
+- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, and `packages/create-helmr`, each with a package manifest.
 - `apps/hatchery-web` and `apps/hatchery-tui`.
 - `docs/`, `deploy/`, `scripts/install.sh` / `scripts/install.ps1`, and user service install helpers production/deployment support files.
 - `node_modules`, installed packages for local development and verification.
@@ -65,7 +65,7 @@ npm run typecheck
 # passes
 
 npm test
-# passes: 177 tests
+# passes: 180 tests
 
 npm run verify
 # passes: typecheck, unit/integration/e2e tests, Hatchery Web build, Hatchery TUI build, create-helmr tests

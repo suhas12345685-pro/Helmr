@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it, test } from 'node:test';
 
-import { formatBanner, parseInstallerArgs, runInstaller, runRequiredCommand } from './index.js';
+import { createOpenCommand, formatBanner, parseInstallerArgs, runInstaller, runRequiredCommand } from './index.js';
 
 describe('create-helmr installer helpers', () => {
   it('reports required command failures instead of silently continuing', () => {
@@ -22,6 +22,9 @@ describe('create-helmr installer helpers', () => {
     assert.equal(parseInstallerArgs(['--dry-run']).dryRun, true);
     assert.equal(parseInstallerArgs(['-n']).dryRun, true);
     assert.equal(parseInstallerArgs([]).dryRun, false);
+    assert.equal(parseInstallerArgs([]).start, true);
+    assert.equal(parseInstallerArgs(['--no-start']).start, false);
+    assert.equal(parseInstallerArgs(['--no-open']).openHatchery, false);
   });
 });
 
@@ -83,5 +86,62 @@ test('dry-run prints intended actions without filesystem, install, prompt, or da
   assert.match(logs.join('\n'), /Dry run mode/);
   assert.match(logs.join('\n'), /would create ~\/\.helmr\/data/);
   assert.match(logs.join('\n'), /would install helmr CLI globally/);
-  assert.match(logs.join('\n'), /Dry run skipped daemon startup prompt/);
+  assert.match(logs.join('\n'), /Dry run would start Gateway and Hatchery/);
+  assert.match(logs.join('\n'), /would open Hatchery onboarding/);
+});
+
+test('installer normal path installs, starts Gateway/Hatchery, and opens onboarding without prompts', async () => {
+  const calls: string[] = [];
+
+  const code = await runInstaller([], {
+    log: () => undefined,
+    error: () => undefined,
+    prompt: async () => {
+      calls.push('prompt');
+      return 'n';
+    },
+    runOptionalCommand: (cmd) => {
+      calls.push(`optional:${cmd}`);
+      return '10.0.0';
+    },
+    runRequiredCommand: (cmd) => {
+      calls.push(`required:${cmd}`);
+      return '';
+    },
+    mkdir: async (path) => {
+      calls.push(`mkdir:${String(path)}`);
+      return undefined;
+    },
+    access: async (path) => {
+      calls.push(`access:${String(path)}`);
+    },
+    writeFile: async (path) => {
+      calls.push(`writeFile:${String(path)}`);
+    },
+    spawn: ((command: string, args: string[]) => {
+      calls.push(`spawn:${command} ${args.join(' ')}`);
+      return { unref() {} };
+    }) as never,
+  });
+
+  assert.equal(code, 0);
+  assert.equal(calls.includes('prompt'), false);
+  assert.ok(calls.includes('required:npm install -g helmr'));
+  assert.ok(calls.some((call) => call === 'spawn:helmr start'));
+  assert.ok(calls.some((call) => call.includes('http://localhost:4000')));
+});
+
+test('open command is platform-specific and shell-safe', () => {
+  assert.deepEqual(createOpenCommand('http://localhost:4000', 'win32'), {
+    command: 'cmd',
+    args: ['/c', 'start', '', 'http://localhost:4000'],
+  });
+  assert.deepEqual(createOpenCommand('http://localhost:4000', 'darwin'), {
+    command: 'open',
+    args: ['http://localhost:4000'],
+  });
+  assert.deepEqual(createOpenCommand('http://localhost:4000', 'linux'), {
+    command: 'xdg-open',
+    args: ['http://localhost:4000'],
+  });
 });
