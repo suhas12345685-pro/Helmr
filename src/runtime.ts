@@ -7,6 +7,7 @@ import { JsonlAuditLog } from '../packages/memory/src/audit-jsonl.js';
 import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import type { HelmrStoreJob } from '../packages/memory/src/sqlite-store.js';
 import { evaluatePlan } from '../packages/cortex/src/policy.js';
+import { executePlanSteps } from '../packages/subagents/src/index.js';
 import { summarizeWorkspace } from '../packages/hands/src/read-tools.js';
 import { councilAgent } from '../packages/mastra/src/agents/council.agent.js';
 import { researchAgent } from '../packages/mastra/src/agents/research.agent.js';
@@ -252,38 +253,44 @@ async function executeReadPlan(
   log: (msg: string) => void,
   store: HelmrSQLiteStore,
 ): Promise<string> {
-  log('Starting step-by-step read execution...');
-  const stepOutputs: Record<string, unknown> = {};
+  log('Starting read execution (parallel batches where the plan allows)...');
+  const { executeReceipt } = await import('../packages/hands/src/executor.js');
 
-  for (const step of plan.steps) {
-    log(`Running step: ${step.title} (${step.id})`);
-    
-    let toolName = '';
-    let input: any = {};
-    const capability = step.requiredCapabilities[0] ?? 'workspace_read';
+  // Run independent steps concurrently. Mutually-parallel steps (as declared by
+  // the plan via canRunInParallelWith) share a batch; everything else stays
+  // ordered. Each step still flows through a receipt for the audit trail.
+  const { outputs: stepOutputs } = await executePlanSteps(
+    plan,
+    async (step) => {
+      const capability = step.requiredCapabilities[0] ?? 'workspace_read';
+      let toolName = '';
+      let input: Record<string, unknown> = {};
 
-    if (step.kind === 'read') {
-      if (step.title.toLowerCase().includes('file')) {
-        toolName = 'read_workspace_file';
-        const fileMatch = step.title.match(/([a-zA-Z0-9_\-\/]+\.[a-zA-Z0-9]+)/);
-        input = { filePath: fileMatch ? fileMatch[1] : 'package.json' };
-      } else {
-        toolName = 'read_workspace';
-        input = { limit: 100 };
+      if (step.kind === 'read') {
+        if (step.title.toLowerCase().includes('file')) {
+          toolName = 'read_workspace_file';
+          const fileMatch = step.title.match(/([a-zA-Z0-9_\-\/]+\.[a-zA-Z0-9]+)/);
+          input = { filePath: fileMatch ? fileMatch[1] : 'package.json' };
+        } else {
+          toolName = 'read_workspace';
+          input = { limit: 100 };
+        }
+      } else if (step.kind === 'command') {
+        if (step.title.toLowerCase().includes('status')) {
+          toolName = 'git_status';
+        } else if (step.title.toLowerCase().includes('log')) {
+          toolName = 'git_log';
+          input = { maxCount: 5 };
+        } else {
+          toolName = 'shell_read';
+          input = { argv: ['node', '--version'] };
+        }
       }
-    } else if (step.kind === 'command') {
-      if (step.title.toLowerCase().includes('status')) {
-        toolName = 'git_status';
-      } else if (step.title.toLowerCase().includes('log')) {
-        toolName = 'git_log';
-        input = { maxCount: 5 };
-      } else {
-        toolName = 'shell_read';
-        input = { argv: ['node', '--version'] };
-      }
-    }
 
-    if (toolName) {
+      if (!toolName) {
+        return undefined;
+      }
+
       const receipt = {
         id: `receipt_${randomUUID()}`,
         jobId: plan.jobId,
@@ -298,20 +305,22 @@ async function executeReadPlan(
 
       await store.saveReceipt(receipt);
       log(`Executing receipt: ${toolName} with input ${JSON.stringify(input)}`);
-      
-      const { executeReceipt } = await import('../packages/hands/src/executor.js');
+
       const result = await executeReceipt(receipt, workspacePath);
-      
       await store.saveResult(result);
-      
-      if (result.status === 'succeeded') {
-        stepOutputs[step.id] = result.output;
-        log(`Step ${step.id} completed successfully`);
-      } else {
+
+      if (result.status !== 'succeeded') {
         log(`Step ${step.id} failed: ${result.error}`);
+        throw new Error(result.error ?? `step ${step.id} failed`);
       }
-    }
-  }
+
+      log(`Step ${step.id} completed successfully`);
+      return result.output;
+    },
+    {
+      onStepStart: (step) => log(`Running step: ${step.title} (${step.id})`),
+    },
+  );
 
   // Synthesis
   const prompt = `User request: "${originalRequest}"
