@@ -43,7 +43,7 @@ function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succ
   return 'queued';
 }
 
-function toUiJob(job: HelmrStoreJob, plan?: HelmrPlan | null) {
+async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: HelmrPlan | null) {
   return {
     id: job.id,
     status: uiStatus(job.status),
@@ -52,8 +52,33 @@ function toUiJob(job: HelmrStoreJob, plan?: HelmrPlan | null) {
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     planSteps: plan?.steps.map((step) => step.title),
-    result: job.lastError,
+    result: job.finalResult ?? job.lastError,
+    toolReceipts: await toUiToolReceipts(store, job.id),
   };
+}
+
+async function toUiToolReceipts(store: HelmrSQLiteStore, jobId: string) {
+  const receipts = await store.listReceiptsForJob(jobId);
+  const withResults = await Promise.all(
+    receipts.map(async (receipt) => {
+      const result = await store.getResultForReceipt(receipt.id);
+      return {
+        tool: receipt.tool,
+        input: JSON.stringify(receipt.input),
+        output: result?.status === 'succeeded'
+          ? stringifyUiValue(result.output)
+          : result?.error ?? receipt.approval,
+        timestamp: receipt.createdAt,
+      };
+    }),
+  );
+  return withResults;
+}
+
+function stringifyUiValue(value: unknown): string {
+  if (value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
 }
 
 function collectCapabilities(plan?: HelmrPlan | null): string {
@@ -127,7 +152,7 @@ export function createHatcheryApp(
     const rawStatus = c.req.query('status') as import('../../shared/src/index.js').HelmrJob['status'] | undefined;
     const jobs = await store.listJobs({ status: rawStatus, limit: 100 });
     const withPlans = await Promise.all(
-      jobs.map(async (job) => toUiJob(job, (await store.getPlan(job.id)) ?? null)),
+      jobs.map(async (job) => toUiJob(store, job, (await store.getPlan(job.id)) ?? null)),
     );
     return c.json({ jobs: withPlans });
   });
@@ -153,7 +178,7 @@ export function createHatcheryApp(
     const job = await store.getJob(c.req.param('id'));
     if (!job) return c.json({ error: 'not found' }, 404);
     const plan = await store.getPlan(job.id);
-    return c.json({ job: toUiJob(job, plan ?? null), plan: plan ?? null });
+    return c.json({ job: await toUiJob(store, job, plan ?? null), plan: plan ?? null });
   });
 
   // GET /api/approvals

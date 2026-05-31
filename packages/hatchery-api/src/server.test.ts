@@ -46,6 +46,82 @@ test('hatchery keeps health public while token-protecting API routes', async () 
   }
 });
 
+test('hatchery job API exposes final result and tool receipt evidence', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-hatchery-result-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+    const createdAt = '2026-05-28T10:00:00.000Z';
+    await store.upsertJob({
+      id: 'job_result',
+      eventId: 'evt_result',
+      workspaceId: 'default',
+      status: 'running',
+      lane: 'interactive',
+      priority: 50,
+      attempts: 1,
+      maxAttempts: 3,
+      createdAt,
+      updatedAt: createdAt,
+      payloadText: 'summarize workspace',
+    });
+    await store.savePlan({
+      id: 'plan_job_result',
+      jobId: 'job_result',
+      summary: 'Inspect workspace',
+      risk: 'low',
+      requiresApproval: false,
+      steps: [
+        {
+          id: 'inspect_workspace',
+          title: 'Inspect workspace tree',
+          kind: 'read',
+          agent: 'none',
+          canRunInParallelWith: [],
+          requiredCapabilities: ['workspace_read'],
+        },
+      ],
+    });
+    await store.saveReceipt({
+      id: 'receipt_result',
+      jobId: 'job_result',
+      stepId: 'inspect_workspace',
+      tool: 'read_workspace',
+      capability: 'workspace_read',
+      input: { limit: 10 },
+      risk: 'low',
+      approval: 'not_required',
+      createdAt,
+    });
+    await store.saveResult({
+      id: 'tool_result',
+      receiptId: 'receipt_result',
+      jobId: 'job_result',
+      status: 'succeeded',
+      output: { files: ['package.json'] },
+      createdAt,
+    });
+    await store.completeJob('job_result', '# Workspace Summary');
+
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+    const response = await app.request('/api/jobs/job_result', {
+      headers: { 'x-forwarded-for': 'hatchery-job-result' },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json() as {
+      job: { result?: string; toolReceipts?: Array<{ tool: string; input: string; output: string }> };
+    };
+    assert.equal(body.job.result, '# Workspace Summary');
+    assert.equal(body.job.toolReceipts?.[0]?.tool, 'read_workspace');
+    assert.equal(body.job.toolReceipts?.[0]?.input, '{"limit":10}');
+    assert.match(body.job.toolReceipts?.[0]?.output ?? '', /package\.json/);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
 test('channels persist pairing-required configuration and activate after code verification', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'helmr-channel-test-'));
   try {

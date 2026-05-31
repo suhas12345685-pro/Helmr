@@ -13,9 +13,54 @@ test('store init records the current schema version for migrations', async () =>
     store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
     await store.init();
 
-    assert.equal(await store.getSchemaVersion(), 1);
+    assert.equal(await store.getSchemaVersion(), 2);
   } finally {
     (store as unknown as { db?: { close: () => void } } | undefined)?.db?.close();
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('store persists final job result and lists tool receipts for Hatchery', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-store-'));
+  let store: HelmrSQLiteStore | undefined;
+  try {
+    store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const createdAt = '2026-05-28T10:00:00.000Z';
+    await store.upsertJob({
+      id: 'job_result',
+      eventId: 'evt_result',
+      workspaceId: 'default',
+      status: 'running',
+      lane: 'interactive',
+      priority: 50,
+      attempts: 1,
+      maxAttempts: 3,
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    await store.saveReceipt({
+      id: 'receipt_result',
+      jobId: 'job_result',
+      stepId: 'inspect_workspace',
+      tool: 'read_workspace',
+      capability: 'workspace_read',
+      input: { limit: 10 },
+      risk: 'low',
+      approval: 'not_required',
+      createdAt,
+    });
+    await store.completeJob('job_result', '# Final answer');
+
+    const job = await store.getJob('job_result');
+    const receipts = await store.listReceiptsForJob('job_result');
+    assert.equal(job?.status, 'succeeded');
+    assert.equal(job?.finalResult, '# Final answer');
+    assert.equal(receipts.length, 1);
+    assert.equal(receipts[0]?.tool, 'read_workspace');
+  } finally {
+    store?.close();
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
