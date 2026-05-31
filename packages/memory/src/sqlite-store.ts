@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { HelmrJob, HelmrPlan, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export interface JobRow {
   id: string;
@@ -20,12 +20,14 @@ export interface JobRow {
   last_error: string | null;
   payload_text: string | null;
   workspace_path: string | null;
+  final_result: string | null;
 }
 
 export type HelmrStoreJob = HelmrJob & {
   lastError?: string;
   payloadText?: string;
   workspacePath?: string;
+  finalResult?: string;
 };
 
 export class HelmrSQLiteStore {
@@ -64,7 +66,8 @@ export class HelmrSQLiteStore {
         lease_until TEXT,
         last_error TEXT,
         payload_text TEXT,
-        workspace_path TEXT
+        workspace_path TEXT,
+        final_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id);
@@ -114,6 +117,7 @@ export class HelmrSQLiteStore {
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
     `);
 
+    await this.ensureColumn('jobs', 'final_result', 'TEXT');
     await this.recordSchemaVersion(CURRENT_SCHEMA_VERSION);
   }
 
@@ -121,6 +125,14 @@ export class HelmrSQLiteStore {
     const rs = await this.client.execute('SELECT MAX(version) AS version FROM schema_migrations');
     const version = rs.rows[0]?.['version'];
     return typeof version === 'number' ? version : 0;
+  }
+
+  private async ensureColumn(table: string, column: string, definition: string): Promise<void> {
+    const rs = await this.client.execute(`PRAGMA table_info(${table})`);
+    const exists = rs.rows.some((row) => row['name'] === column);
+    if (!exists) {
+      await this.client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
   }
 
   async claimNextJob(options: { leaseMs: number; now?: Date }): Promise<HelmrStoreJob | undefined> {
@@ -178,10 +190,12 @@ export class HelmrSQLiteStore {
     }
   }
 
-  async completeJob(id: string, now = new Date()): Promise<void> {
+  async completeJob(id: string, finalResultOrNow?: string | Date, now = new Date()): Promise<void> {
+    const finalResult = finalResultOrNow instanceof Date ? undefined : finalResultOrNow;
+    const completedAt = finalResultOrNow instanceof Date ? finalResultOrNow : now;
     await this.client.execute({
-      sql: `UPDATE jobs SET status='succeeded', updated_at=?, lease_until=NULL, last_error=NULL WHERE id=?`,
-      args: [now.toISOString(), id],
+      sql: `UPDATE jobs SET status='succeeded', updated_at=?, lease_until=NULL, last_error=NULL, final_result=? WHERE id=?`,
+      args: [completedAt.toISOString(), finalResult ?? null, id],
     });
   }
 
@@ -209,14 +223,14 @@ export class HelmrSQLiteStore {
   async upsertJob(job: HelmrStoreJob): Promise<void> {
     await this.client.execute({
       sql: `INSERT OR REPLACE INTO jobs
-        (id,event_id,workspace_id,status,lane,priority,attempts,max_attempts,created_at,updated_at,lease_until,last_error,payload_text,workspace_path)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (id,event_id,workspace_id,status,lane,priority,attempts,max_attempts,created_at,updated_at,lease_until,last_error,payload_text,workspace_path,final_result)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       args: [
         job.id, job.eventId, job.workspaceId, job.status, job.lane,
         job.priority, job.attempts, job.maxAttempts,
         job.createdAt, job.updatedAt,
         job.leaseUntil ?? null, job.lastError ?? null,
-        job.payloadText ?? null, job.workspacePath ?? null,
+        job.payloadText ?? null, job.workspacePath ?? null, job.finalResult ?? null,
       ],
     });
   }
@@ -421,6 +435,24 @@ export class HelmrSQLiteStore {
     return { decision: (row['decision'] as 'approved' | 'denied' | null) ?? null };
   }
 
+  async listReceiptsForJob(jobId: string): Promise<ToolReceipt[]> {
+    const rs = await this.client.execute({
+      sql: 'SELECT * FROM receipts WHERE job_id=? ORDER BY created_at ASC',
+      args: [jobId],
+    });
+    return rs.rows.map((row) => ({
+      id: row['id'] as string,
+      jobId: row['job_id'] as string,
+      stepId: row['step_id'] as string,
+      tool: row['tool'] as string,
+      capability: row['capability'] as Capability,
+      input: JSON.parse(row['input'] as string),
+      risk: row['risk'] as any,
+      approval: row['approval'] as any,
+      createdAt: row['created_at'] as string,
+    }));
+  }
+
   async saveResult(result: ToolResult): Promise<void> {
     await this.client.execute({
       sql: `INSERT OR REPLACE INTO results (id,receipt_id,job_id,status,output,error,created_at)
@@ -448,5 +480,6 @@ function rowToJob(row: JobRow): HelmrStoreJob {
     lastError: row.last_error ?? undefined,
     payloadText: row.payload_text ?? undefined,
     workspacePath: row.workspace_path ?? undefined,
+    finalResult: row.final_result ?? undefined,
   };
 }

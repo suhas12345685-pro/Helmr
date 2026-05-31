@@ -196,7 +196,7 @@ INSTRUCTIONS:
       data: { answer },
     });
 
-    await store.completeJob(claimed.id);
+    await store.completeJob(claimed.id, answer);
 
     return {
       jobId: claimed.id,
