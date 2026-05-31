@@ -76,8 +76,15 @@ npm run verify:production
 
 ## Remaining Hardening Before Public Production Scale
 
-- Add persistent secret storage instead of process-only provider key configuration.
-- Add rollback/backup guidance for future database migrations.
-- Add deployment packaging for Docker, systemd, and Windows service installation.
-- Add end-to-end tests that run a full approved job through Gateway, Hatchery approval, runtime execution, and audit review.
-- Add backup/restore tests for SQLite state and JSONL audit evidence.
+- Add persistent secret storage instead of process-only provider key configuration. (Open.)
+- Add rollback/backup guidance for future database migrations. (Backup/restore + pre-upgrade
+  backup guidance added in `docs/deployment.md`; an automated rollback path is still open.)
+- Add deployment packaging for Docker, systemd, and Windows service installation. (Done:
+  `Dockerfile`, `docker-compose.yml`, `deploy/helmr.service`, and Windows/NSSM guidance in
+  `docs/deployment.md`.)
+- Add end-to-end tests that run a full approved job through Gateway, Hatchery approval, runtime
+  execution, and audit review. (Partially done: `src/e2e-job.test.ts` runs the full intake →
+  plan → policy → execute → audit-verify lifecycle and asserts tamper detection. An HTTP-level
+  test through Gateway intake and Hatchery approval is still open.)
+- Add backup/restore tests for SQLite state and JSONL audit evidence. (Documented in
+  `docs/deployment.md`; automated backup/restore tests are still open.)
