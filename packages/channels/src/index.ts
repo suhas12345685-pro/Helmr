@@ -11,4 +11,8 @@ export { GoogleChatAdapter } from './googlechat.js';
 export { TeamsAdapter } from './teams.js';
 export { WeChatAdapter } from './wechat.js';
 export { IMessageAdapter } from './imessage.js';
+export { ChannelSupervisor } from './supervisor.js';
+export type { ChannelSupervisorDeps, SupervisedChannel } from './supervisor.js';
+export { buildConfiguredAdapters } from './adapter-factory.js';
+export type { ChannelEnv, BuildAdaptersParams } from './adapter-factory.js';
 export * from './channel-config.js';

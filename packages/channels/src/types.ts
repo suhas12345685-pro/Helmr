@@ -32,6 +32,12 @@ export interface ChannelAdapter {
   configure(credentials: Record<string, string>): Promise<void>;
   startPairing(adminId: string): Promise<{ code: string; expiresAt: string }>;
   confirmPairing(code: string): Promise<boolean>;
+  /**
+   * Restore the active runtime state for a channel that pairing already
+   * confirmed and persisted (e.g. after a daemon restart). It must never be
+   * called for a channel that has not completed pairing.
+   */
+  markPaired(): void;
 }
 
 export type EventEmitter = (event: HelmrEvent) => Promise<void>;

@@ -1,10 +1,17 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile, readFile, unlink, access } from 'node:fs/promises';
 
 import { startGatewayServer } from '../packages/gateway/src/http-server.js';
 import { startHatcheryServer } from '../packages/hatchery-api/src/server.js';
 import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
+import {
+  ChannelSupervisor,
+  ChannelConfigStore,
+  buildConfiguredAdapters,
+} from '../packages/channels/src/index.js';
+import type { HelmrEvent } from '../packages/shared/src/index.js';
 import { getHelmrPaths } from './paths.js';
 
 export interface DaemonOptions {
@@ -94,10 +101,12 @@ export async function startDaemon(
   let gateway: { close: () => Promise<void> } | null = null;
   let hatchery: { close: () => Promise<void> } | null = null;
   let workerInterval: NodeJS.Timeout | null = null;
+  let channels: ChannelSupervisor | null = null;
 
   const shutdown = async (): Promise<void> => {
     log('Shutting down...');
     if (workerInterval) clearInterval(workerInterval);
+    await channels?.stop().catch(() => undefined);
     await gateway?.close().catch(() => undefined);
     await hatchery?.close().catch(() => undefined);
     for (const pidService of pidServices) {
@@ -141,6 +150,43 @@ export async function startDaemon(
       }, 2000);
 
       log('Gateway and background job worker ready');
+
+      const enqueueChannelEvent = async (event: HelmrEvent): Promise<void> => {
+        const now = new Date().toISOString();
+        await storeForWorker.upsertJob({
+          id: `job_${randomUUID()}`,
+          eventId: event.id,
+          workspaceId: event.workspace.id,
+          status: 'queued',
+          lane: 'interactive',
+          priority: 50,
+          attempts: 0,
+          maxAttempts: 3,
+          createdAt: now,
+          updatedAt: now,
+          payloadText: event.payload.text,
+          workspacePath: event.workspace.path,
+        });
+        log(`[Channels] Queued job from ${event.principal.id}`);
+      };
+
+      channels = new ChannelSupervisor({
+        enqueue: enqueueChannelEvent,
+        loadAdapters: async (emit) => {
+          const configStore = new ChannelConfigStore(dataDir, {
+            webchatEndpoint: `http://localhost:${gatewayPort}`,
+          });
+          const views = await configStore.listChannels();
+          return buildConfiguredAdapters({ views, env: process.env, emit, log });
+        },
+        log: (msg) => log(`[Channels] ${msg}`),
+      });
+
+      const startedChannels = await channels.start();
+      const running = startedChannels.filter((c) => c.started).map((c) => c.kind);
+      log(running.length > 0
+        ? `Channels live: ${running.join(', ')}`
+        : 'No paired channels configured (use Hatchery onboarding to add some)');
     }
 
     if (service === 'all' || service === 'hatchery') {
