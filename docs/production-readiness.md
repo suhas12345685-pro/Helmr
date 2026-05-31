@@ -35,6 +35,7 @@ HELMR_MODEL=<provider/model selected during onboarding>
 - HTTP APIs apply a fixed-window per-client rate limit.
 - Write tools remain gated through receipts and approval checks.
 - Provider keys are configured intentionally during onboarding or runtime setup, not forced to a single vendor.
+- Provider keys configured at runtime persist to an owner-only (0600) `secrets.json` and are restored at startup; environment-injected secrets take precedence over the on-disk store.
 
 ## Reliability Gates
 
@@ -76,8 +77,19 @@ npm run verify:production
 
 ## Remaining Hardening Before Public Production Scale
 
-- Add persistent secret storage instead of process-only provider key configuration.
-- Add rollback/backup guidance for future database migrations.
-- Add deployment packaging for Docker, systemd, and Windows service installation.
-- Add end-to-end tests that run a full approved job through Gateway, Hatchery approval, runtime execution, and audit review.
-- Add backup/restore tests for SQLite state and JSONL audit evidence.
+- Add persistent secret storage instead of process-only provider key configuration. (Done:
+  `SecretStore` (`packages/config/src/secret-store.ts`) persists provider keys to
+  `secrets.json` under the config directory with owner-only (0600) permissions; keys are
+  restored into the environment at daemon/Hatchery/CLI startup, with environment-injected
+  secrets taking precedence. An encrypted-at-rest / OS-keyring backend remains a future option.)
+- Add rollback/backup guidance for future database migrations. (Backup/restore + pre-upgrade
+  backup guidance added in `docs/deployment.md`; an automated rollback path is still open.)
+- Add deployment packaging for Docker, systemd, and Windows service installation. (Done:
+  `Dockerfile`, `docker-compose.yml`, `deploy/helmr.service`, and Windows/NSSM guidance in
+  `docs/deployment.md`.)
+- Add end-to-end tests that run a full approved job through Gateway, Hatchery approval, runtime
+  execution, and audit review. (Partially done: `src/e2e-job.test.ts` runs the full intake →
+  plan → policy → execute → audit-verify lifecycle and asserts tamper detection. An HTTP-level
+  test through Gateway intake and Hatchery approval is still open.)
+- Add backup/restore tests for SQLite state and JSONL audit evidence. (Documented in
+  `docs/deployment.md`; automated backup/restore tests are still open.)

@@ -1,0 +1,49 @@
+# systemd unit for a self-hosted Helmr control plane (no container).
+#
+# Install:
+#   sudo useradd --system --home-dir /var/lib/helmr --create-home helmr
+#   sudo cp deploy/helmr.service /etc/systemd/system/helmr.service
+#   sudo cp deploy/helmr.env.example /etc/helmr/helmr.env   # then edit secrets
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now helmr
+#
+# Assumes the built app lives at /opt/helmr (package.json, dist/, node_modules/).
+
+[Unit]
+Description=Helmr self-hosted AI orchestrator
+Documentation=https://github.com/suhas12345685-pro/helmr
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=helmr
+Group=helmr
+WorkingDirectory=/opt/helmr
+
+# Secrets and production config (HELMR_API_TOKEN, HELMR_ALLOWED_ORIGINS,
+# HELMR_MODEL, provider keys, ...) live here, not in this unit file.
+EnvironmentFile=/etc/helmr/helmr.env
+Environment=NODE_ENV=production
+Environment=HELMR_PRODUCTION=true
+Environment=HELMR_DATA_DIR=/var/lib/helmr/data
+Environment=HELMR_CONFIG_DIR=/var/lib/helmr/config
+Environment=HELMR_AUDIT_DIR=/var/lib/helmr/data/audit
+
+# Fail fast on an unsafe production config before starting the daemon.
+ExecStartPre=/usr/bin/node dist/src/cli.js self-test
+ExecStart=/usr/bin/node dist/src/cli.js start all
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening: the daemon only needs its own state directory to be writable.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/helmr
+
+[Install]
+WantedBy=multi-user.target

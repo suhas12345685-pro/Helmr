@@ -4,6 +4,7 @@ import { runJob } from './runtime.js';
 import { runSelfTest, printSelfTestResults } from './self-test.js';
 import { startDaemon, stopDaemon, daemonStatus } from './daemon.js';
 import { getHelmrPaths } from './paths.js';
+import { loadPersistedSecrets } from './secrets.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -171,6 +172,10 @@ Created: ${new Date().toISOString()}
     }
 
     const workspacePath = parsed.workspace ? resolve(parsed.workspace) : process.cwd();
+
+    // Restore persisted provider keys so a configured model is used (not the
+    // local fallback) even in a fresh CLI process.
+    await loadPersistedSecrets();
 
     console.log('');
     console.log('Helmr');
