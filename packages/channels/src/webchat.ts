@@ -77,6 +77,11 @@ export class WebChatAdapter implements ChannelAdapter {
     throw new Error('WebChat does not require pairing');
   }
 
+  markPaired(): void {
+    // WebChat is always active for the local owner; nothing to restore.
+    this.status = 'active';
+  }
+
   async start(): Promise<void> {
     if (this.wss) return;
 

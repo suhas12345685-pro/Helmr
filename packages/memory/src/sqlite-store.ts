@@ -293,6 +293,11 @@ export class HelmrSQLiteStore {
     return JSON.parse(rs.rows[0]['data'] as string) as HelmrPlan;
   }
 
+  /** Drop any stored plan(s) for a job so the next run re-plans from scratch. */
+  async clearPlan(jobId: string): Promise<void> {
+    await this.client.execute({ sql: 'DELETE FROM plans WHERE job_id=?', args: [jobId] });
+  }
+
   async saveReceipt(receipt: ToolReceipt): Promise<void> {
     await this.client.execute({
       sql: `INSERT OR REPLACE INTO receipts (id,job_id,step_id,tool,capability,input,risk,approval,created_at)

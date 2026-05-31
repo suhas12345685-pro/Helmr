@@ -70,6 +70,11 @@ export class SlackAdapter implements ChannelAdapter {
     return true;
   }
 
+  markPaired(): void {
+    this.connectedAt = new Date().toISOString();
+    this.status = 'active';
+  }
+
   async start(): Promise<void> {
     if (this.status !== 'active') throw new Error('Channel must be active before starting');
     if (this.ws) return;

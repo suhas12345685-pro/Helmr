@@ -7,7 +7,18 @@ import type { ChannelStatus } from './types.js';
 const PAIRING_CODE_LENGTH = 8;
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 
-export type KnownChannelName = 'webchat' | 'telegram' | 'discord' | 'slack' | 'whatsapp';
+export type KnownChannelName =
+  | 'webchat'
+  | 'telegram'
+  | 'discord'
+  | 'slack'
+  | 'whatsapp'
+  | 'googlechat'
+  | 'signal'
+  | 'irc'
+  | 'teams'
+  | 'wechat'
+  | 'imessage';
 export type ChannelPairingState = 'unpaired' | 'pending' | 'pairing_required' | 'paired';
 
 export interface ChannelConfigView {
@@ -47,6 +58,12 @@ const KNOWN_CHANNELS: Array<{ name: KnownChannelName; label: string }> = [
   { name: 'discord', label: 'Discord' },
   { name: 'slack', label: 'Slack' },
   { name: 'whatsapp', label: 'WhatsApp' },
+  { name: 'googlechat', label: 'Google Chat' },
+  { name: 'signal', label: 'Signal' },
+  { name: 'irc', label: 'IRC' },
+  { name: 'teams', label: 'Microsoft Teams' },
+  { name: 'wechat', label: 'WeChat' },
+  { name: 'imessage', label: 'iMessage' },
 ];
 
 const KNOWN_CHANNEL_NAMES = new Set<KnownChannelName>(KNOWN_CHANNELS.map((channel) => channel.name));
