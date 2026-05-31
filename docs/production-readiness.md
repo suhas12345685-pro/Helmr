@@ -1,7 +1,7 @@
 # Helmr Production Readiness Gate
 
 Status: active hardening gate
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 Helmr is production-grade only when every gate below is true and verified on the target deployment.
 
@@ -45,6 +45,8 @@ HELMR_MODEL=<provider/model selected during onboarding>
 - Daemon PID records preserve ports and support status/stop for combined Gateway and Hatchery runs.
 - Runtime, Gateway, Hatchery, receipt tools, CLI admin commands, and self-test use the same `HELMR_DATA_DIR` and `HELMR_CONFIG_DIR` resolver.
 - SQLite initialization records the current schema version in `schema_migrations`.
+- Online SQLite backups use SQLite snapshot semantics rather than raw live-file copies.
+- Backup/restore automation preserves the control-plane database, hash-chained audit evidence, and config files.
 - JSONL audit logs are hash-chained per job and can be verified for tampering.
 - `helmr self-test` checks that the audit hash-chain verifier is available.
 
@@ -83,7 +85,8 @@ npm run verify:production
   restored into the environment at daemon/Hatchery/CLI startup, with environment-injected
   secrets taking precedence. An encrypted-at-rest / OS-keyring backend remains a future option.)
 - Add rollback/backup guidance for future database migrations. (Backup/restore + pre-upgrade
-  backup guidance added in `docs/deployment.md`; an automated rollback path is still open.)
+  backup guidance added in `docs/deployment.md`; an automated forward-version rollback path is
+  still open.)
 - Add deployment packaging for Docker, systemd, and Windows service installation. (Done:
   `Dockerfile`, `docker-compose.yml`, `deploy/helmr.service`, and Windows/NSSM guidance in
   `docs/deployment.md`.)
@@ -91,5 +94,6 @@ npm run verify:production
   execution, and audit review. (Partially done: `src/e2e-job.test.ts` runs the full intake →
   plan → policy → execute → audit-verify lifecycle and asserts tamper detection. An HTTP-level
   test through Gateway intake and Hatchery approval is still open.)
-- Add backup/restore tests for SQLite state and JSONL audit evidence. (Documented in
-  `docs/deployment.md`; automated backup/restore tests are still open.)
+- Add backup/restore tests for SQLite state and JSONL audit evidence. (Done:
+  `packages/memory/src/backup.test.ts` snapshots and restores SQLite control-plane rows,
+  hash-chained audit evidence, and config files.)

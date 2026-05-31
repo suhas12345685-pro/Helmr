@@ -103,7 +103,10 @@ nssm start Helmr
 
 The state is a single directory tree, so backup is a consistent copy of it.
 SQLite must be backed up with a SQLite-aware method (not a raw `cp` of a live
-database file) to avoid copying a torn write.
+database file) to avoid copying a torn write. Helmr also exposes
+`backupHelmrState` / `restoreHelmrState` from `packages/memory/src/backup.ts`
+for automation; the helper uses SQLite `VACUUM INTO` for the database snapshot
+and recursively copies audit/config directories.
 
 Backup (daemon may keep running):
 
