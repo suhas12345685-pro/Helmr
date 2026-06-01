@@ -980,13 +980,13 @@ Direct CLI install:
 
 ```powershell
 npm install -g helmr@latest
-helmr start --open-hatchery
+helmr onboard
 ```
 
 One-shot no-global command:
 
 ```powershell
-npx helmr@latest start --open-hatchery
+npx helmr@latest onboard
 ```
 
 Developer install from repo:
