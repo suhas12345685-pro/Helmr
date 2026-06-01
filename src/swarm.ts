@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import { z } from 'zod';
+
 import type { HelmrPlan, PlanStep, SwarmTask } from '../packages/shared/src/index.js';
 import type { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
+import { councilAgent } from '../packages/mastra/src/agents/council.agent.js';
 import { researchAgent } from '../packages/mastra/src/agents/research.agent.js';
 import { shouldUseLocalAgentFallback } from './local-agent.js';
 
@@ -59,6 +62,52 @@ export function decomposeRequest(text: string, maxTasks = MAX_SUBTASKS): string[
   }
 
   return [trimmed];
+}
+
+const SubtaskDecompositionSchema = z.object({
+  subtasks: z.array(z.string().min(1)).min(1).max(MAX_SUBTASKS),
+});
+
+/**
+ * Resolve the subtasks for a request. When a model provider is configured, ask
+ * the council to decompose the request into independent, parallelizable research
+ * subtasks; fall back to the deterministic heuristic on any error, an empty/thin
+ * result, or when running locally without a provider.
+ */
+export async function resolveSubtasks(request: string, maxTasks = MAX_SUBTASKS): Promise<string[]> {
+  const heuristic = decomposeRequest(request, maxTasks);
+  if (shouldUseLocalAgentFallback()) return heuristic;
+
+  try {
+    const llm = await llmDecompose(request, maxTasks);
+    const cleaned = dedupe(llm.map((item) => item.trim()).filter(Boolean)).slice(0, maxTasks);
+    // Only trust the LLM when it produced a genuine fan-out; otherwise keep the
+    // heuristic so a single vague subtask never replaces a useful decomposition.
+    return cleaned.length >= 2 ? cleaned : heuristic;
+  } catch {
+    return heuristic;
+  }
+}
+
+async function llmDecompose(request: string, maxTasks: number): Promise<string[]> {
+  const prompt = `Break the following request into independent research subtasks that can run in parallel.
+
+Request: "${request}"
+
+Rules:
+- Produce between 2 and ${maxTasks} subtasks (fewer is fine if the request is narrow).
+- Each subtask must be a self-contained instruction that a research worker can act on alone.
+- Subtasks must not depend on each other's output and must not overlap.
+- Do not include synthesis or "combine the results" as a subtask.`;
+
+  const result = await councilAgent.generate([{ role: 'user', content: prompt }], {
+    structuredOutput: { schema: SubtaskDecompositionSchema },
+  });
+
+  const parsed = result.object as { subtasks?: unknown } | undefined;
+  return Array.isArray(parsed?.subtasks)
+    ? parsed.subtasks.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 /** Build a low-risk, read-only plan that mirrors the swarm subtasks for the Hatchery view. */

@@ -21,9 +21,9 @@ import {
 } from './local-agent.js';
 import {
   createSwarmPlan,
-  decomposeRequest,
   looksLikeParallelResearch,
   orchestrateSwarm,
+  resolveSubtasks,
 } from './swarm.js';
 import { getHelmrPaths } from './paths.js';
 
@@ -117,7 +117,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
       // The council's gated read-first flow still handles everything else.
       if (options.forceSwarm || looksLikeParallelResearch(text)) {
         log('Routing to research swarm (parallel fan-out)...');
-        const subtasks = decomposeRequest(text);
+        const subtasks = await resolveSubtasks(text);
         plan = createSwarmPlan(claimed.id, text, subtasks);
         await store.savePlan(plan);
         await store.createSwarm({

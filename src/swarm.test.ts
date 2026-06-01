@@ -11,6 +11,7 @@ import {
   looksLikeCodingRequest,
   looksLikeParallelResearch,
   orchestrateSwarm,
+  resolveSubtasks,
 } from './swarm.js';
 
 const MODEL_ENV_KEYS = [
@@ -55,6 +56,22 @@ test('decomposeRequest splits explicit lists and fans broad questions into angle
 
   // Non-research prose with no structure stays a single task.
   assert.deepEqual(decomposeRequest('tell me about it'), ['tell me about it']);
+});
+
+test('resolveSubtasks falls back to the heuristic without a model provider', async () => {
+  const previousModelEnv = new Map<string, string | undefined>(
+    MODEL_ENV_KEYS.map((key) => [key, process.env[key]]),
+  );
+  try {
+    for (const key of MODEL_ENV_KEYS) delete process.env[key];
+    const subtasks = await resolveSubtasks('compare React, Vue, and Svelte');
+    assert.deepEqual(subtasks, decomposeRequest('compare React, Vue, and Svelte'));
+  } finally {
+    for (const [key, value] of previousModelEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
 });
 
 test('createSwarmPlan produces a low-risk read-only plan mirroring subtasks', () => {
