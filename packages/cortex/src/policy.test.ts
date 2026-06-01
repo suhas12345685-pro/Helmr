@@ -8,23 +8,31 @@ import {
   getSkillAutonomy,
 } from './policy.js';
 
-test('owner has standing approval for low-risk skill writes', () => {
+test('autonomous owner self-extends without approval at any risk', () => {
   assert.equal(
-    hasStandingApproval(
-      { capability: 'skill_write', risk: 'low' },
-      { trustLevel: 'owner', autonomy: 'standing' },
-    ),
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
+    true,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'high' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
     true,
   );
 });
 
-test('standing approval is withheld for non-owners, high risk, manual mode, or other writes', () => {
+test('standing mode auto-approves only low-risk owner skill writes', () => {
   assert.equal(
-    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'trusted', autonomy: 'standing' }),
-    false,
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    true,
   );
   assert.equal(
     hasStandingApproval({ capability: 'skill_write', risk: 'high' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    false,
+  );
+});
+
+test('standing approval is withheld for non-owners, manual mode, or non-skill writes', () => {
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'trusted', autonomy: 'autonomous' }),
     false,
   );
   assert.equal(
@@ -32,16 +40,17 @@ test('standing approval is withheld for non-owners, high risk, manual mode, or o
     false,
   );
   assert.equal(
-    hasStandingApproval({ capability: 'workspace_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    hasStandingApproval({ capability: 'workspace_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
     false,
   );
 });
 
-test('getSkillAutonomy defaults to standing and respects manual override', () => {
-  assert.equal(getSkillAutonomy({}), 'standing');
+test('getSkillAutonomy defaults to autonomous and respects explicit dials', () => {
+  assert.equal(getSkillAutonomy({}), 'autonomous');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'whatever' }), 'autonomous');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'standing' }), 'standing');
   assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'manual' }), 'manual');
   assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'MANUAL' }), 'manual');
-  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'whatever' }), 'standing');
 });
 
 test('read-only plan is allowed without approval', () => {

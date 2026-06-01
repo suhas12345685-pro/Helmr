@@ -16,17 +16,20 @@ export interface PolicyDecision {
 /**
  * Trust-calibrated autonomy for self-extension.
  *
- * Helmr "understands momentum" — for the owner, low-risk self-extension
- * (creating a skill) can carry standing approval so it feels automatic, while
- * still being a gated capability for anyone less trusted. Set
- * HELMR_SKILL_AUTONOMY=manual to require an explicit approval every time.
+ * Helmr is an employee, not an intern — for the owner it self-extends (creates
+ * and updates skills) on its own initiative. The default is `autonomous`. Dial
+ * it back with HELMR_SKILL_AUTONOMY: `standing` limits auto-approval to
+ * low-risk skill writes, `manual` requires an explicit approval every time.
  */
-export type SkillAutonomy = 'standing' | 'manual';
+export type SkillAutonomy = 'autonomous' | 'standing' | 'manual';
 
 export function getSkillAutonomy(
   env: Record<string, string | undefined> = process.env,
 ): SkillAutonomy {
-  return env['HELMR_SKILL_AUTONOMY']?.trim().toLowerCase() === 'manual' ? 'manual' : 'standing';
+  const raw = env['HELMR_SKILL_AUTONOMY']?.trim().toLowerCase();
+  if (raw === 'manual') return 'manual';
+  if (raw === 'standing') return 'standing';
+  return 'autonomous';
 }
 
 export interface StandingApprovalContext {
@@ -35,20 +38,18 @@ export interface StandingApprovalContext {
 }
 
 /**
- * Whether the owner has standing approval for this operation, so it can run
- * without pausing for an explicit confirmation. Deliberately narrow: only the
- * owner, only when autonomy is standing, only low-risk skill writes.
+ * Whether the owner has standing approval for this operation, so it runs without
+ * pausing for an explicit confirmation. Scoped to the owner and to self-extension
+ * (skill_write): `autonomous` covers any risk, `standing` only low risk.
  */
 export function hasStandingApproval(
   op: { capability: Capability; risk: PlanRisk },
   context: StandingApprovalContext,
 ): boolean {
-  return (
-    context.autonomy === 'standing' &&
-    context.trustLevel === 'owner' &&
-    op.capability === 'skill_write' &&
-    op.risk === 'low'
-  );
+  if (context.autonomy === 'manual') return false;
+  if (context.trustLevel !== 'owner') return false;
+  if (op.capability !== 'skill_write') return false;
+  return context.autonomy === 'autonomous' || op.risk === 'low';
 }
 
 export function evaluatePlan(plan: HelmrPlan): PolicyDecision {
