@@ -1,9 +1,19 @@
 import { createClient, type Client } from '@libsql/client';
 import { dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
-import type { HelmrJob, HelmrPlan, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
+import type {
+  HelmrJob,
+  HelmrPlan,
+  ToolReceipt,
+  ToolResult,
+  Capability,
+  Swarm,
+  SwarmStatus,
+  SwarmTask,
+  SwarmTaskStatus,
+} from '../../shared/src/index.js';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export interface JobRow {
   id: string;
@@ -115,6 +125,32 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
+
+      CREATE TABLE IF NOT EXISTS swarms (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        request TEXT NOT NULL,
+        subtasks TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'planned',
+        summary TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_swarms_job ON swarms(job_id);
+
+      CREATE TABLE IF NOT EXISTS swarm_tasks (
+        id TEXT PRIMARY KEY,
+        swarm_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        output TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(swarm_id) REFERENCES swarms(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_swarm_tasks_swarm ON swarm_tasks(swarm_id);
     `);
 
     await this.ensureColumn('jobs', 'final_result', 'TEXT');
@@ -462,6 +498,133 @@ export class HelmrSQLiteStore {
              result.error ?? null, result.createdAt],
     });
   }
+
+  // --- Research swarms (persisted so orchestrator + Hatchery share state) ---
+
+  async createSwarm(input: {
+    id: string;
+    jobId: string;
+    request: string;
+    subtasks: string[];
+    status?: SwarmStatus;
+    summary?: string;
+    now?: Date;
+  }): Promise<void> {
+    const now = (input.now ?? new Date()).toISOString();
+    await this.client.execute({
+      sql: `INSERT OR REPLACE INTO swarms (id,job_id,request,subtasks,status,summary,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?)`,
+      args: [
+        input.id,
+        input.jobId,
+        input.request,
+        JSON.stringify(input.subtasks),
+        input.status ?? 'planned',
+        input.summary ?? null,
+        now,
+        now,
+      ],
+    });
+  }
+
+  async updateSwarmStatus(id: string, status: SwarmStatus, summary?: string, now = new Date()): Promise<void> {
+    await this.client.execute({
+      sql: 'UPDATE swarms SET status=?, summary=COALESCE(?, summary), updated_at=? WHERE id=?',
+      args: [status, summary ?? null, now.toISOString(), id],
+    });
+  }
+
+  async getSwarm(id: string): Promise<Swarm | undefined> {
+    const rs = await this.client.execute({ sql: 'SELECT * FROM swarms WHERE id=?', args: [id] });
+    const row = rs.rows[0];
+    return row ? rowToSwarm(row) : undefined;
+  }
+
+  async getSwarmByJob(jobId: string): Promise<Swarm | undefined> {
+    const rs = await this.client.execute({
+      sql: 'SELECT * FROM swarms WHERE job_id=? ORDER BY created_at DESC LIMIT 1',
+      args: [jobId],
+    });
+    const row = rs.rows[0];
+    return row ? rowToSwarm(row) : undefined;
+  }
+
+  async listSwarms(limit = 100): Promise<Swarm[]> {
+    const rs = await this.client.execute({
+      sql: 'SELECT * FROM swarms ORDER BY created_at DESC LIMIT ?',
+      args: [limit],
+    });
+    return rs.rows.map(rowToSwarm);
+  }
+
+  async saveSwarmTask(task: SwarmTask): Promise<void> {
+    await this.client.execute({
+      sql: `INSERT OR REPLACE INTO swarm_tasks (id,swarm_id,title,prompt,status,output,error,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?)`,
+      args: [
+        task.id,
+        task.swarmId,
+        task.title,
+        task.prompt,
+        task.status,
+        task.output ?? null,
+        task.error ?? null,
+        task.createdAt,
+        task.updatedAt,
+      ],
+    });
+  }
+
+  async updateSwarmTask(
+    id: string,
+    fields: { status?: SwarmTaskStatus; output?: string; error?: string },
+    now = new Date(),
+  ): Promise<void> {
+    await this.client.execute({
+      sql: `UPDATE swarm_tasks
+            SET status=COALESCE(?, status),
+                output=COALESCE(?, output),
+                error=COALESCE(?, error),
+                updated_at=?
+            WHERE id=?`,
+      args: [fields.status ?? null, fields.output ?? null, fields.error ?? null, now.toISOString(), id],
+    });
+  }
+
+  async listSwarmTasks(swarmId: string): Promise<SwarmTask[]> {
+    const rs = await this.client.execute({
+      sql: 'SELECT * FROM swarm_tasks WHERE swarm_id=? ORDER BY created_at ASC',
+      args: [swarmId],
+    });
+    return rs.rows.map(rowToSwarmTask);
+  }
+}
+
+function rowToSwarm(row: Record<string, unknown>): Swarm {
+  return {
+    id: row['id'] as string,
+    jobId: row['job_id'] as string,
+    request: row['request'] as string,
+    subtasks: JSON.parse(row['subtasks'] as string) as string[],
+    status: row['status'] as SwarmStatus,
+    summary: (row['summary'] as string | null) ?? undefined,
+    createdAt: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
+}
+
+function rowToSwarmTask(row: Record<string, unknown>): SwarmTask {
+  return {
+    id: row['id'] as string,
+    swarmId: row['swarm_id'] as string,
+    title: row['title'] as string,
+    prompt: row['prompt'] as string,
+    status: row['status'] as SwarmTaskStatus,
+    output: (row['output'] as string | null) ?? undefined,
+    error: (row['error'] as string | null) ?? undefined,
+    createdAt: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
 }
 
 function rowToJob(row: JobRow): HelmrStoreJob {

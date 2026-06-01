@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { HelmrSQLiteStore } from './sqlite-store.js';
+import { CURRENT_SCHEMA_VERSION, HelmrSQLiteStore } from './sqlite-store.js';
 
 test('store init records the current schema version for migrations', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'helmr-store-'));
@@ -13,7 +13,7 @@ test('store init records the current schema version for migrations', async () =>
     store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
     await store.init();
 
-    assert.equal(await store.getSchemaVersion(), 2);
+    assert.equal(await store.getSchemaVersion(), CURRENT_SCHEMA_VERSION);
   } finally {
     (store as unknown as { db?: { close: () => void } } | undefined)?.db?.close();
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);

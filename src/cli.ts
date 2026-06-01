@@ -17,7 +17,11 @@ Helmr - AI agent orchestration system
 
 Usage:
   helmr ask <text>            Run a job with the given text request
+      claude/lucid-dijkstra-i2aYM
+  helmr swarm <text>          Fan a wide research request out to a parallel swarm
+ 
   helmr swarm <subtasks>      Spawn parallel embodied agents (subtasks split by ";")
+        main
   helmr onboard               Onboard and set up a new Helmr installation
   helmr status                Show runtime status
   helmr self-test             Run system health checks
@@ -36,6 +40,7 @@ Options:
 Examples:
   helmr ask "summarize this workspace and identify next development steps"
   helmr ask "what tests are missing?" --workspace /path/to/project
+  helmr swarm "compare Postgres, MySQL, and SQLite for a self-hosted app"
   helmr onboard
   helmr start
   helmr start gateway
@@ -63,6 +68,71 @@ function parseArgs(argv: string[]): { text: string; workspace?: string } | null 
 
   if (textParts.length === 0) return null;
   return { text: textParts.join(' '), workspace };
+}
+
+async function runRequest(
+  text: string,
+  workspace: string | undefined,
+  options: { forceSwarm?: boolean } = {},
+): Promise<void> {
+  const workspacePath = workspace ? resolve(workspace) : process.cwd();
+
+  // Restore persisted provider keys so a configured model is used (not the
+  // local fallback) even in a fresh CLI process.
+  await loadPersistedSecrets();
+
+  console.log('');
+  console.log(options.forceSwarm ? 'Helmr (swarm)' : 'Helmr');
+  console.log('-'.repeat(60));
+  console.log(`Request: ${text}`);
+  console.log(`Workspace: ${workspacePath}`);
+  console.log('-'.repeat(60));
+  console.log('');
+
+  try {
+    const result = await runJob({
+      text,
+      workspacePath,
+      forceSwarm: options.forceSwarm,
+      onProgress: (msg) => console.log(`  ${msg}`),
+    });
+
+    console.log('');
+    console.log('-'.repeat(60));
+    console.log(`Job: ${result.jobId}`);
+    console.log(`Status: ${result.status}`);
+    console.log(`Plan: ${result.plan?.summary ?? 'N/A'}`);
+    console.log(`Risk: ${result.plan?.risk ?? 'low'}`);
+    console.log('-'.repeat(60));
+    console.log('');
+
+    if (result.status === 'awaiting_approval') {
+      console.log('Awaiting review approval:');
+      for (const reason of result.deniedReasons ?? []) {
+        console.log(`  - ${reason}`);
+      }
+      process.exit(0);
+    }
+
+    if (result.status === 'denied') {
+      console.log('Denied by policy:');
+      for (const reason of result.deniedReasons ?? []) {
+        console.log(`  - ${reason}`);
+      }
+      process.exit(1);
+    }
+
+    if (result.status === 'failed') {
+      console.log('Job failed.');
+      process.exit(1);
+    }
+
+    console.log(result.answer);
+    console.log('');
+  } catch (err) {
+    console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
 }
 
 async function main(): Promise<void> {
@@ -204,73 +274,16 @@ Created: ${new Date().toISOString()}
     }
   }
 
-  if (command === 'ask') {
+  if (command === 'ask' || command === 'swarm') {
     const parsed = parseArgs(args.slice(1));
 
     if (!parsed) {
       console.error('Error: no request text provided');
-      console.error('Usage: helmr ask "your request here"');
+      console.error(`Usage: helmr ${command} "your request here"`);
       process.exit(1);
     }
 
-    const workspacePath = parsed.workspace ? resolve(parsed.workspace) : process.cwd();
-
-    // Restore persisted provider keys so a configured model is used (not the
-    // local fallback) even in a fresh CLI process.
-    await loadPersistedSecrets();
-
-    console.log('');
-    console.log('Helmr');
-    console.log('-'.repeat(60));
-    console.log(`Request: ${parsed.text}`);
-    console.log(`Workspace: ${workspacePath}`);
-    console.log('-'.repeat(60));
-    console.log('');
-
-    try {
-      const result = await runJob({
-        text: parsed.text,
-        workspacePath,
-        onProgress: (msg) => console.log(`  ${msg}`),
-      });
-
-      console.log('');
-      console.log('-'.repeat(60));
-      console.log(`Job: ${result.jobId}`);
-      console.log(`Status: ${result.status}`);
-      console.log(`Plan: ${result.plan?.summary ?? 'N/A'}`);
-      console.log(`Risk: ${result.plan?.risk ?? 'low'}`);
-      console.log('-'.repeat(60));
-      console.log('');
-
-      if (result.status === 'awaiting_approval') {
-        console.log('Awaiting review approval:');
-        for (const reason of result.deniedReasons ?? []) {
-          console.log(`  - ${reason}`);
-        }
-        process.exit(0);
-      }
-
-      if (result.status === 'denied') {
-        console.log('Denied by policy:');
-        for (const reason of result.deniedReasons ?? []) {
-          console.log(`  - ${reason}`);
-        }
-        process.exit(1);
-      }
-
-      if (result.status === 'failed') {
-        console.log('Job failed.');
-        process.exit(1);
-      }
-
-      console.log(result.answer);
-      console.log('');
-    } catch (err) {
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      process.exit(1);
-    }
-
+    await runRequest(parsed.text, parsed.workspace, { forceSwarm: command === 'swarm' });
     return;
   }
 

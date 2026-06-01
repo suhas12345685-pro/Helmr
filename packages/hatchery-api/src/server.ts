@@ -201,6 +201,37 @@ export function createHatcheryApp(
     return c.json({ job: await toUiJob(store, job, plan ?? null), plan: plan ?? null });
   });
 
+  // GET /api/swarms — research swarms, newest first
+  app.get('/api/swarms', async (c) => {
+    const limit = Number(c.req.query('limit') ?? '50');
+    const swarms = await store.listSwarms(Number.isFinite(limit) ? limit : 50);
+    const withCounts = await Promise.all(
+      swarms.map(async (swarm) => {
+        const tasks = await store.listSwarmTasks(swarm.id);
+        return {
+          id: swarm.id,
+          jobId: swarm.jobId,
+          request: swarm.request,
+          status: swarm.status,
+          taskCount: tasks.length,
+          succeeded: tasks.filter((t) => t.status === 'succeeded').length,
+          failed: tasks.filter((t) => t.status === 'failed').length,
+          createdAt: swarm.createdAt,
+          updatedAt: swarm.updatedAt,
+        };
+      }),
+    );
+    return c.json({ swarms: withCounts });
+  });
+
+  // GET /api/swarms/:id — a single swarm with its parallel subtasks
+  app.get('/api/swarms/:id', async (c) => {
+    const swarm = await store.getSwarm(c.req.param('id'));
+    if (!swarm) return c.json({ error: 'not found' }, 404);
+    const tasks = await store.listSwarmTasks(swarm.id);
+    return c.json({ swarm, tasks });
+  });
+
   // GET /api/dreams — idle-time reflections, newest first
   app.get('/api/dreams', async (c) => {
     const limit = Number(c.req.query('limit') ?? '20');
