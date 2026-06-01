@@ -30,6 +30,9 @@ Usage:
   helmr start hatchery        Start the Hatchery dashboard and UI
   helmr start all             Start Gateway and Hatchery daemons
   helmr stop                  Stop all background daemons
+  helmr halt [reason]         Engage the kill-switch: halt all autonomous work
+  helmr resume                Release the kill-switch and allow work again
+  helmr halts                 Show active kill-switch halts
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -192,6 +195,43 @@ async function main(): Promise<void> {
   if (command === 'stop') {
     await stopDaemon('all');
     return;
+  }
+
+  if (command === 'halt' || command === 'resume' || command === 'halts') {
+    const { join } = await import('node:path');
+    const { KillSwitch, agentScope } = await import('../packages/scheduler/src/kill-switch.js');
+    const { mkdir } = await import('node:fs/promises');
+    const dataDir = getHelmrPaths().dataDir;
+    await mkdir(dataDir, { recursive: true });
+    const ks = await KillSwitch.create({ url: `file:${join(dataDir, 'helmr.db')}` });
+    try {
+      if (command === 'halt') {
+        const agentFlag = args.indexOf('--agent');
+        const scope = agentFlag !== -1 && args[agentFlag + 1] ? agentScope(args[agentFlag + 1]!) : 'global';
+        const reason = args.slice(1).filter((a) => !a.startsWith('--') && a !== args[agentFlag + 1]).join(' ') || undefined;
+        await ks.halt(scope, reason);
+        console.log(`[HALTED] ${scope}${reason ? ` — ${reason}` : ''}`);
+        console.log('Autonomous work is recalled. Run `helmr resume` to allow it again.');
+      } else if (command === 'resume') {
+        const agentFlag = args.indexOf('--agent');
+        const scope = agentFlag !== -1 && args[agentFlag + 1] ? agentScope(args[agentFlag + 1]!) : 'global';
+        await ks.resume(scope);
+        console.log(`[RESUMED] ${scope}`);
+      } else {
+        const halts = await ks.listHalts();
+        if (halts.length === 0) {
+          console.log('No active halts. Autonomy is live.');
+        } else {
+          console.log('Active kill-switch halts:');
+          for (const h of halts) {
+            console.log(`  - ${h.scope}${h.reason ? ` — ${h.reason}` : ''} (since ${h.createdAt})`);
+          }
+        }
+      }
+      process.exit(0);
+    } finally {
+      ks.close();
+    }
   }
 
   if (command === 'hatchery') {

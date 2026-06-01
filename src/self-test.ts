@@ -105,6 +105,51 @@ export async function runSelfTest(env: SelfTestEnv = process.env): Promise<SelfT
     checks.push({ name: 'audit_verifier', passed: false, detail: String(err) });
   }
 
+  // Autonomy safety substrate (the four edge boundaries + kill-switch).
+  try {
+    const { KillSwitch } = await import('../packages/scheduler/src/kill-switch.js');
+    const ks = await KillSwitch.create({ url: ':memory:' });
+    try {
+      const halted = await ks.isHalted();
+      checks.push({ name: 'kill_switch', passed: halted === false, detail: 'kill-switch reachable (not halted)' });
+    } finally {
+      ks.close();
+    }
+  } catch (err) {
+    checks.push({ name: 'kill_switch', passed: false, detail: String(err) });
+  }
+
+  try {
+    const { resolveBudgetLimits } = await import('../packages/scheduler/src/budget.js');
+    const limits = resolveBudgetLimits(env);
+    checks.push({
+      name: 'budget_limits',
+      passed: true,
+      detail: `usd/job=${limits.usdPerJob} actions/job=${limits.actionsPerJob} max=${limits.jobSeconds}s rate=${limits.toolRatePerMin}/min`,
+    });
+  } catch (err) {
+    checks.push({ name: 'budget_limits', passed: false, detail: String(err) });
+  }
+
+  try {
+    const { evaluateAutonomousReceipt, resolveOutwardPolicy } = await import('../packages/cortex/src/policy.js');
+    const decision = evaluateAutonomousReceipt(
+      {
+        id: 'selftest-receipt', jobId: 'selftest', stepId: 's1', tool: 'browser_automation',
+        capability: 'browser', input: {}, risk: 'low', approval: 'required',
+        createdAt: new Date().toISOString(),
+      },
+      resolveOutwardPolicy({}),
+    );
+    checks.push({
+      name: 'outward_gate',
+      passed: decision.tier === 'gated' && !decision.allowed,
+      detail: 'outward actions gated by default',
+    });
+  } catch (err) {
+    checks.push({ name: 'outward_gate', passed: false, detail: String(err) });
+  }
+
   return checks;
 }
 
