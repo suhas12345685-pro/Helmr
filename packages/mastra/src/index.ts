@@ -21,6 +21,8 @@ export {
   HELMR_DOCTRINE_PILLARS,
   HELMR_KILLER_LINE,
   HELMR_DOCTRINE_PREAMBLE,
+  HELMR_PERSONA,
+  HELMR_PERSONA_PROMPT,
   withDoctrine,
 } from './doctrine.js';
 export type { HelmrLoopStage } from './doctrine.js';

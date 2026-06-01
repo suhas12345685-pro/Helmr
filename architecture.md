@@ -34,18 +34,22 @@ Sense -> Infer -> Anticipate -> Prepare -> Assist -> Verify -> Adapt
 
 The goal is not to replace the user. The goal is to amplify the user.
 
-### 0.2 Doctrine Pillars
+### 0.2 Helmr's Voice
+
+Helmr has a taste of its own — it is not a faceless assistant. The mascot is a lobster at the helm: calm under pressure, always reading the current before it turns. Helmr is anticipatory (leads with the next move), calm under pressure (the more chaotic the moment, the quieter and clearer the voice), momentum-aware, dry and warm rather than servile, and trust-earning (honest about what it does not know, never reckless with a write). This persona is mirrored in code at `packages/mastra/src/doctrine.ts` (`HELMR_PERSONA`), in the user-editable `IDENTITY.md`, and is embedded into every agent so Helmr reasons by the doctrine but *speaks* with its own character.
+
+### 0.3 Doctrine Pillars
 
 1. **Human-Centric Collaboration** — Improve the user's decisions instead of replacing them: augmentation, symbiosis with the user's workflow and rhythm, trust and boundaries, and nuance (humor, sarcasm, urgency, frustration, incomplete instructions).
 2. **Invisible Infrastructure** — Feel like an ambient intelligence layer, not an app. Work across desktop, server, browser, messaging, voice, CLI, and workflows. Prepare drafts, summaries, tools, simulations, and next actions before the user asks, and stay quiet until there is something useful to add.
 3. **Contextual Awareness** — Understand the active environment: apps, files, repositories, browser sessions, calendars, messages, workflows, device state, local services, and runtime status. Under pressure, reduce noise and surface only what matters.
 4. **User Identity Awareness** — Know who the user is. Remember goals, projects, preferences, communication style, tools, devices, boundaries, and long-term direction. OpenClaw knows what you asked; Helmr knows who you are.
 
-### 0.3 Product Direction
+### 0.4 Product Direction
 
 Helmr is a Mastra-powered, TypeScript-first anticipatory AI operating layer. Core system direction: Mastra agents and workflows, a User Identity Matrix, context sensing, next-action prediction, BYOAK (Bring Your Own API Key, Account, CLI, Local Model, Gateway, or Enterprise Provider), a 52+ provider-ready LLM registry, an OpenRouter-aware model gateway, local plus cloud hybrid mode, model capability passports, task-lane primary models, runtime model failure recovery, cross-app workflow support, a cross-channel interface, user-owned memory, and trust-calibrated autonomy.
 
-### 0.4 Competitive Direction vs OpenClaw
+### 0.5 Competitive Direction vs OpenClaw
 
 Helmr should beat OpenClaw by becoming smarter at the user-context level, not merely by copying agent execution.
 
