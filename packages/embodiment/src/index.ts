@@ -49,8 +49,23 @@ export {
 } from './browser-workspace-provider.js';
 export {
   MultiAgentRuntime,
+  serializeAgentBody,
+  type SerializedAgentBody,
   type RuntimeMode,
   type SpawnSpec,
   type AssignTaskSpec,
   type MultiAgentRuntimeOptions,
 } from './multi-agent-runtime.js';
+export {
+  runAgentLoop,
+  ScriptedDecider,
+  type AgentAction,
+  type AgentDecider,
+  type BrainContext,
+  type RunAgentLoopOptions,
+  type AgentLoopResult,
+} from './agent-brain.js';
+export {
+  PlaywrightBrowserDriver,
+  type PlaywrightDriverOptions,
+} from './playwright-driver.js';

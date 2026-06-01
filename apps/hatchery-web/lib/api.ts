@@ -295,6 +295,44 @@ export async function createSkill(skill: Partial<Skill> & { id: string; name: st
   });
 }
 
+export interface AgentBodyView {
+  agentId: string;
+  role: string;
+  workspaceId: string;
+  workspaceKind: string;
+  status: string;
+  taskState: { taskId?: string; description?: string; status: string; result?: unknown; error?: string };
+  permissions: string[];
+  memoryEntries: number;
+  createdAt: string;
+  lastHeartbeatAt: string;
+}
+
+export interface TaskLedgerView {
+  taskId: string;
+  description: string;
+  assignedAgentId?: string;
+  workspaceId?: string;
+  status: string;
+  actions: Array<{ timestamp: string; action: string }>;
+  errors: Array<{ timestamp: string; action: string }>;
+  result?: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAgents(): Promise<AgentBodyView[]> {
+  const data = await apiFetch<unknown>('/api/agents', { allowErrorStatus: true });
+  const list = unwrap<unknown>(data, 'agents');
+  return Array.isArray(list) ? (list as AgentBodyView[]) : [];
+}
+
+export async function fetchTasks(): Promise<TaskLedgerView[]> {
+  const data = await apiFetch<unknown>('/api/tasks', { allowErrorStatus: true });
+  const list = unwrap<unknown>(data, 'tasks');
+  return Array.isArray(list) ? (list as TaskLedgerView[]) : [];
+}
+
 export async function fetchConfigFile(file: string): Promise<string> {
   const data = await apiFetch<unknown>(`/api/config/${file}`, { allowErrorStatus: true });
   return isRecord(data) && typeof data['content'] === 'string' ? data['content'] : '';

@@ -187,3 +187,61 @@ runtime.assignTask(research.agentId, { description: 'Research competitors + pric
 They work in parallel, can message each other when needed, are tracked in the
 ledger, and the orchestrator merges their output into one result — while the
 Operator's real keyboard and mouse stay untouched.
+
+### The agent brain loop
+
+`runAgentLoop(body, { task, decider })` turns a passive body into a working
+operator. Each step: `body.vision.observe()` → build a `BrainContext` → the
+`AgentDecider` returns the next `AgentAction` → the loop executes it through the
+body's virtual keyboard/mouse → observe the change → repeat until `done`/`fail`
+or `maxSteps`. Permission errors stop the loop and fail safely (status `error`),
+never throw past the runtime.
+
+The decider is pluggable:
+
+- **`ScriptedDecider`** — a fixed list of actions; deterministic, great for tests
+  and simple automations.
+- **`createMastraDecider(agent)`** (in `packages/mastra`) — an LLM brain. It feeds
+  the soul + the structured observation + recent history into a Mastra agent with
+  structured output (`AgentActionSchema`) and returns the next action. Invalid
+  model output is coerced into a safe `fail` rather than crashing.
+
+The loop itself is model-agnostic — the same loop runs scripted automations and
+LLM-driven agents.
+
+### The browser path (Playwright)
+
+`PlaywrightBrowserDriver` is a real `BrowserDriver`. Playwright is an **optional
+peer**, imported lazily, so the package builds and installs without it. To drive
+real pages:
+
+```bash
+npm i playwright
+npx playwright install chromium
+```
+
+```ts
+import { BrowserWorkspaceProvider, PlaywrightBrowserDriver, MultiAgentRuntime } from '@helmr/embodiment';
+
+const runtime = new MultiAgentRuntime(
+  new BrowserWorkspaceProvider(new PlaywrightBrowserDriver({ headless: true })),
+);
+```
+
+Each agent gets its own Playwright **context** (isolated cookies/storage/page).
+Perception comes from `page.accessibility.snapshot()` + DOM text (structured), not
+from screenshots. Until Playwright is installed, the driver throws a clear,
+actionable error.
+
+### Hatchery agents view
+
+The Hatchery server exposes the live runtime when one is attached:
+
+- `GET /api/agents` → JSON-safe `SerializedAgentBody[]` (role, status, workspace,
+  current task, permissions, heartbeat) via `runtime.snapshot()`.
+- `GET /api/tasks` → the `TaskLedger` entries.
+
+`createHatcheryApp(store, router, config, dataDir, runtime?)` takes an optional
+`AgentsView`; with no runtime the endpoints return empty arrays. The web app's
+**Agents** page renders live agent cards and the task ledger, refreshing every
+few seconds.

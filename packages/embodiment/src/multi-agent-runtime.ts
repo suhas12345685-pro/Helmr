@@ -14,6 +14,35 @@ import type {
 
 export type RuntimeMode = 'independent' | 'swarm';
 
+/** A JSON-safe view of an agent body (no streams/functions) for APIs and UIs. */
+export interface SerializedAgentBody {
+  agentId: string;
+  role: string;
+  workspaceId: string;
+  workspaceKind: WorkspaceKind;
+  status: AgentBody['status'];
+  taskState: AgentBody['taskState'];
+  permissions: PermissionZone[];
+  memoryEntries: number;
+  createdAt: string;
+  lastHeartbeatAt: string;
+}
+
+export function serializeAgentBody(body: AgentBody): SerializedAgentBody {
+  return {
+    agentId: body.agentId,
+    role: body.role,
+    workspaceId: body.workspaceId,
+    workspaceKind: body.browserSession.kind,
+    status: body.status,
+    taskState: body.taskState,
+    permissions: [...body.permissions],
+    memoryEntries: body.memory.entries().length,
+    createdAt: body.createdAt,
+    lastHeartbeatAt: body.lastHeartbeatAt,
+  };
+}
+
 export interface SpawnSpec {
   role: string;
   permissions?: PermissionZone[];
@@ -121,6 +150,11 @@ export class MultiAgentRuntime {
 
   list(): AgentBody[] {
     return [...this.bodies.values()];
+  }
+
+  /** JSON-safe snapshot of all live agents, for the Hatchery agents view. */
+  snapshot(): SerializedAgentBody[] {
+    return this.list().map(serializeAgentBody);
   }
 
   status(agentId: string): AgentBody['status'] | undefined {

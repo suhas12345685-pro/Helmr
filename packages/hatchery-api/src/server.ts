@@ -17,6 +17,7 @@ import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../share
 import { ChannelConfigStore, isKnownChannelName } from '../../channels/src/channel-config.js';
 import { DreamJournal } from '../../memory/src/dream.js';
 import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
+import type { SerializedAgentBody, TaskLedgerEntry } from '../../embodiment/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 
 export interface HatcheryServerOptions {
@@ -89,11 +90,21 @@ function collectCapabilities(plan?: HelmrPlan | null): string {
   return [...capabilities].join(', ') || 'approval';
 }
 
+/**
+ * A read-only view of the live multi-agent runtime for the Hatchery agents page.
+ * Structural so any MultiAgentRuntime satisfies it without a hard import.
+ */
+export interface AgentsView {
+  snapshot(): SerializedAgentBody[];
+  ledger: { all(): TaskLedgerEntry[] };
+}
+
 export function createHatcheryApp(
   store: HelmrSQLiteStore,
   router: ModelRouter,
   configManager: ConfigFileManager,
   dataDir: string,
+  agents?: AgentsView,
 ): Hono {
   const app = new Hono();
   const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
@@ -430,6 +441,16 @@ export function createHatcheryApp(
     const removed = await skills.remove(c.req.param('id'));
     if (!removed) return c.json({ error: 'not found' }, 404);
     return c.json({ removed: true });
+  });
+
+  // GET /api/agents — live embodied agents and their bodies/status
+  app.get('/api/agents', (c) => {
+    return c.json({ agents: agents?.snapshot() ?? [] });
+  });
+
+  // GET /api/tasks — the task ledger (what every agent is doing)
+  app.get('/api/tasks', (c) => {
+    return c.json({ tasks: agents?.ledger.all() ?? [] });
   });
 
   // GET /api/self-test
