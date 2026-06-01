@@ -17,7 +17,11 @@ Helmr - AI agent orchestration system
 
 Usage:
   helmr ask <text>            Run a job with the given text request
+      claude/lucid-dijkstra-i2aYM
   helmr swarm <text>          Fan a wide research request out to a parallel swarm
+ 
+  helmr swarm <subtasks>      Spawn parallel embodied agents (subtasks split by ";")
+        main
   helmr onboard               Onboard and set up a new Helmr installation
   helmr status                Show runtime status
   helmr self-test             Run system health checks
@@ -281,6 +285,47 @@ Created: ${new Date().toISOString()}
 
     await runRequest(parsed.text, parsed.workspace, { forceSwarm: command === 'swarm' });
     return;
+  }
+
+  if (command === 'swarm') {
+    const parsed = parseArgs(args.slice(1));
+    if (!parsed) {
+      console.error('Error: no subtasks provided');
+      console.error('Usage: helmr swarm "research competitors; compare pricing; check docs"');
+      process.exit(1);
+    }
+
+    const { orchestrateSwarm } = await import('./orchestrator.js');
+    const subtasks = parsed.text
+      .split(/;|•/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((task, i) => ({ role: `agent-${i + 1}`, task }));
+
+    if (subtasks.length === 0) {
+      console.error('Error: no subtasks parsed (separate them with ";")');
+      process.exit(1);
+    }
+
+    await loadPersistedSecrets();
+
+    console.log('');
+    console.log('Helmr swarm');
+    console.log('-'.repeat(60));
+    console.log(`Spinning up ${subtasks.length} embodied agent(s) — each in its own isolated body.`);
+    console.log('-'.repeat(60));
+
+    const { merged, results } = await orchestrateSwarm({
+      subtasks,
+      onProgress: (m) => console.log(`  ${m}`),
+    });
+
+    console.log('');
+    console.log('-'.repeat(60));
+    console.log(merged);
+    console.log('-'.repeat(60));
+    const failed = results.filter((r) => r.status !== 'done').length;
+    process.exit(failed > 0 ? 1 : 0);
   }
 
   console.error(`Unknown command: ${command}`);

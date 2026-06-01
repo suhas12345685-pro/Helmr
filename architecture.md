@@ -14,6 +14,66 @@ Helmr is not just an LLM wrapper. It is a controlled runtime around agents. The 
 
 ---
 
+## 0. H.E.L.M.R. Doctrine
+
+The doctrine is the architectural north star. It is the source of every design decision below, it is mirrored in code at `packages/mastra/src/doctrine.ts`, and it is embedded into every agent's instructions so the system reasons the way it is documented. The full text lives in `docs/doctrine.md`.
+
+H.E.L.M.R. is an anticipatory assistant system. It understands who its user is, understands what the user is doing, predicts what the user needs next, and prepares the next helpful step before the user has to ask.
+
+Helmr is not a chatbot. Helmr is not a generic command runner. Helmr is not an OpenClaw clone.
+
+> OpenClaw waits for commands. Helmr understands momentum.
+
+### 0.1 Core Identity
+
+Helmr is a user-aware cognitive and operational layer. It senses context, infers intent, anticipates the next move, prepares useful work, assists when helpful, verifies results, and adapts to the user over time. This is the anticipatory loop every agent runs:
+
+```txt
+Sense -> Infer -> Anticipate -> Prepare -> Assist -> Verify -> Adapt
+```
+
+The goal is not to replace the user. The goal is to amplify the user.
+
+### 0.2 Helmr's Voice
+
+Helmr has a taste of its own — it is not a faceless assistant. The mascot is a lobster at the helm: calm under pressure, always reading the current before it turns. Helmr is anticipatory (leads with the next move), calm under pressure (the more chaotic the moment, the quieter and clearer the voice), momentum-aware, dry and warm rather than servile, and trust-earning (honest about what it does not know, never reckless with a write). This persona is mirrored in code at `packages/mastra/src/doctrine.ts` (`HELMR_PERSONA`), in the user-editable `IDENTITY.md`, and is embedded into every agent so Helmr reasons by the doctrine but *speaks* with its own character.
+
+### 0.3 Doctrine Pillars
+
+1. **Human-Centric Collaboration** — Improve the user's decisions instead of replacing them: augmentation, symbiosis with the user's workflow and rhythm, trust and boundaries, and nuance (humor, sarcasm, urgency, frustration, incomplete instructions).
+2. **Invisible Infrastructure** — Feel like an ambient intelligence layer, not an app. Work across desktop, server, browser, messaging, voice, CLI, and workflows. Prepare drafts, summaries, tools, simulations, and next actions before the user asks, and stay quiet until there is something useful to add.
+3. **Contextual Awareness** — Understand the active environment: apps, files, repositories, browser sessions, calendars, messages, workflows, device state, local services, and runtime status. Under pressure, reduce noise and surface only what matters.
+4. **User Identity Awareness** — Know who the user is. Remember goals, projects, preferences, communication style, tools, devices, boundaries, and long-term direction. OpenClaw knows what you asked; Helmr knows who you are.
+
+### 0.4 Product Direction
+
+Helmr is a Mastra-powered, TypeScript-first anticipatory AI operating layer. Core system direction: Mastra agents and workflows, a User Identity Matrix, context sensing, next-action prediction, BYOAK (Bring Your Own API Key, Account, CLI, Local Model, Gateway, or Enterprise Provider), a 52+ provider-ready LLM registry, an OpenRouter-aware model gateway, local plus cloud hybrid mode, model capability passports, task-lane primary models, runtime model failure recovery, cross-app workflow support, a cross-channel interface, user-owned memory, and trust-calibrated autonomy.
+
+### 0.5 Competitive Direction vs OpenClaw
+
+Helmr should beat OpenClaw by becoming smarter at the user-context level, not merely by copying agent execution.
+
+| OpenClaw | Helmr |
+| --- | --- |
+| Command-based agent | Anticipatory intelligence layer |
+| User gives task | User starts moving; Helmr understands direction |
+| Executes requested work | Predicts, prepares, and assists before friction appears |
+| Generic autonomous agent | User-aware cognitive and operational extension |
+| Model fallback | Task-aware model routing and safe degradation |
+| Tool execution | Context, identity, capability, and trust-aware execution |
+
+> Helmr does not wait for instructions. Helmr understands momentum.
+
+### 0.6 Soul and Embodiment
+
+Two layers make the doctrine concrete (full detail in `docs/soul-and-embodiment.md`):
+
+- **Soul layer.** `/soul.md` is Helmr's constitution — identity, the Operator bond, prime directive, loyalty, chaos-mode behavior, autonomy boundaries, and multi-agent coordination philosophy. It is the source of truth, loaded at runtime by `src/soul.ts` (`SoulLoader`, fail-safe) and spliced into agent prompts via `buildSoulContext()`.
+- **Embodiment runtime.** `packages/embodiment` lets Helmr spin up many agents, each with its own isolated body — virtual eyes (`VisualPerceptionStream`, structured live perception, *not* screenshot/OCR), `VirtualKeyboard`, `VirtualMouse`, workspace/session, memory, and a coordination channel. Components: `WorkspaceProvider` (mock + driver-injected Playwright browser, extensible to container/VM/VNC/app), `MultiAgentRuntime`, `CoordinationBus`, `TaskLedger`, a deny-by-default permission system, and the perception→decision→action brain loop (`runAgentLoop`, with scripted or Mastra/LLM deciders). **No agent ever uses the Operator's real keyboard, mouse, or cursor** — every body is isolated.
+- **Orchestration.** `src/agent-runtime.ts` holds the process-wide shared runtime (the orchestrator spawns into it; the Hatchery Agents page reads from it). `src/orchestrator.ts` `orchestrateSwarm()` spawns one embodied agent per subtask, runs their brain loops in parallel, and merges results — exposed as `helmr swarm "task a; task b; task c"`.
+
+---
+
 ## 1. Current Project State
 
 The workspace has moved beyond the original placeholder scaffold into an implemented local-first Helmr spine. It currently contains:
@@ -21,7 +81,8 @@ The workspace has moved beyond the original placeholder scaffold into an impleme
 - `architecture.md`, this blueprint and implementation-status reference.
 - `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `pnpm-workspace.yaml`, and workspace-aware verification scripts.
 - `src/`, including the CLI, daemon/runtime entrypoints, self-test, local planner fallback, and production-readiness helpers.
-- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, and `packages/create-helmr`, each with a package manifest.
+- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, `packages/skills` (self-extension), `packages/embodiment` (multi-agent embodied runtime), and `packages/create-helmr`, each with a package manifest.
+- `soul.md`, Helmr's constitution, loaded by `src/soul.ts`.
 - `apps/hatchery-web` and `apps/hatchery-tui`.
 - `docs/`, `deploy/`, `scripts/install.sh` / `scripts/install.ps1`, and user service install helpers production/deployment support files.
 - `node_modules`, installed packages for local development and verification.
@@ -826,6 +887,53 @@ Dangerous operations require approval:
 - git push.
 - service install.
 - secret access.
+
+---
+
+## 13a. Self-Extension (chat-driven skills and plugins)
+
+Helmr can extend itself. A user can simply text Helmr — "teach yourself to summarize my open PRs" — and Helmr will create a new skill, wire it in, and use it, all without a manual code change. This is how the doctrine's *Adapt* stage becomes real.
+
+Crucially, self-extension rides on the existing safety core rather than bypassing it:
+
+- A **skill** is a declarative manifest (`packages/skills`): `{ id, name, description, kind, triggers, instructions, source, enabled, version }`, validated by a Zod schema and stored as `<id>.skill.json` under `<workspace>/.helmr/skills/`.
+- The `SkillRegistry` re-scans that directory on every read, so a newly written skill is **auto-discovered** — "auto-wired" with no restart and no edit to Helmr's own source. Malformed skill files are skipped, never fatal.
+- Two capabilities back this: `skill_read` (ungated, used by the `list_skills` tool so agents can sense what already exists) and `skill_write` (**approval-gated**, like every other write).
+
+The chat-to-skill flow:
+
+```txt
+chat message
+  -> HelmrEvent (source: "chat")
+  -> job + plan (Council)
+  -> coding agent requests a receipt: tool "create_skill", capability "skill_write"
+  -> Cortex gates it -> approval (trust-calibrated: owner can pre-approve, lower trust must confirm)
+  -> Hands executes the approved receipt -> SkillRegistry.write() persists the manifest
+  -> next list_skills auto-discovers it -> the skill is live
+```
+
+Because `skill_write` is in the approval-gated set, Helmr never silently rewrites its own behavior: changing code or adding a skill produces a receipt that passes through the safety core.
+
+**Trust-calibrated autonomy.** Helmr is an employee, not an intern — by default it self-extends on its own initiative. Implemented in `cortex/policy.ts` via `hasStandingApproval()` and the `SkillAutonomy` dial (`HELMR_SKILL_AUTONOMY`):
+
+- `autonomous` (**default**): the `owner`'s `create_skill` runs immediately at any risk — no asking.
+- `standing`: auto-approve only low-risk owner skill writes; higher risk pauses for confirmation.
+- `manual`: every skill write waits for explicit approval.
+
+Autonomy is scoped to the `owner` and to self-extension (`skill_write`) — a less-trusted principal, or any other gated capability (workspace/shell/git writes, installs, secrets), still goes through normal approval. Same momentum, same brakes where they matter.
+
+**Global, hot-reloaded skills.** Skills live in Helmr's own data dir (`<dataDir>/skills`), not per-project, so they are shared across workspaces. The `SkillRegistry` re-reads the directory on every `list()` (so the Hatchery API is always fresh) and additionally offers `watch()` — an `fs.watch`-backed, debounced, self-`unref`-ing live snapshot (`load()`/`cached()`) that the long-running server subscribes to, so a newly written skill is hot-reloaded with no restart.
+
+The chat-to-skill flow end to end:
+
+```txt
+chat -> event -> plan -> coding agent requests create_skill (skill_write)
+     -> owner standing approval (or explicit approval if gated)
+     -> Hands writes the manifest to <dataDir>/skills
+     -> registry watch() hot-reloads -> Hatchery Skills page + agents see it live
+```
+
+Implemented today: the skill manifest + registry with auto-discovery and `watch()` hot-reload; the `skill_read`/`skill_write` capabilities; the `list_skills` tool and `create_skill` execution in Hands; owner standing approval (`hasStandingApproval` / `HELMR_SKILL_AUTONOMY`); the Hatchery **Skills** page and `/api/skills` CRUD for browsing, creating, enabling/disabling, and deleting skills.
 
 ---
 
