@@ -17,6 +17,7 @@ Helmr - AI agent orchestration system
 
 Usage:
   helmr ask <text>            Run a job with the given text request
+  helmr onboard               Onboard and set up a new Helmr installation
   helmr status                Show runtime status
   helmr self-test             Run system health checks
   helmr start                 Start Gateway and Hatchery daemons
@@ -34,6 +35,7 @@ Options:
 Examples:
   helmr ask "summarize this workspace and identify next development steps"
   helmr ask "what tests are missing?" --workspace /path/to/project
+  helmr onboard
   helmr start
   helmr start gateway
   helmr start hatchery
@@ -66,6 +68,19 @@ async function main(): Promise<void> {
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printUsage();
     process.exit(0);
+  }
+
+  if (command === 'onboard') {
+    const { spawn } = await import('node:child_process');
+    console.log('Starting Helmr onboarding wizard...');
+    const child = spawn('npm', ['exec', 'create-helmr@latest'], {
+      stdio: 'inherit',
+      shell: true,
+    });
+    child.on('exit', (code) => {
+      process.exit(code ?? 0);
+    });
+    return;
   }
 
   if (command === 'status') {
