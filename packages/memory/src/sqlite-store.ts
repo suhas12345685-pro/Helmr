@@ -81,6 +81,7 @@ export class HelmrSQLiteStore {
       );
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
       CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_jobs_priority_created ON jobs(priority DESC, created_at ASC);
 
       CREATE TABLE IF NOT EXISTS plans (
         id TEXT PRIMARY KEY,
