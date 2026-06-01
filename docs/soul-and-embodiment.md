@@ -245,3 +245,34 @@ The Hatchery server exposes the live runtime when one is attached:
 `AgentsView`; with no runtime the endpoints return empty arrays. The web app's
 **Agents** page renders live agent cards and the task ledger, refreshing every
 few seconds.
+
+### End-to-end: shared runtime + orchestrator
+
+Two pieces wire it all together in-process:
+
+- **`src/agent-runtime.ts`** — `getAgentRuntime()` returns the process-wide
+  `MultiAgentRuntime` singleton. The orchestrator spawns into it; the Hatchery
+  server (`startHatcheryServer`) passes it to `createHatcheryApp`, so the Agents
+  page reflects live work. Provider is chosen by `HELMR_WORKSPACE_PROVIDER`
+  (`browser` → Playwright contexts; default → mock).
+- **`src/orchestrator.ts`** — `orchestrateSwarm({ subtasks })` spawns one isolated
+  agent per subtask, runs each agent's brain loop in parallel, records to the
+  ledger, and merges results. The decider defaults to a model-free
+  perceive-and-report brain; pass `deciderFor` to use `createMastraDecider` for
+  real LLM-driven agents. `looksLikeParallelResearch(text)` is a cheap heuristic
+  the planner can use to route wide requests to the swarm.
+
+Try it:
+
+```bash
+helmr swarm "research competitors; compare pricing; check the docs"
+```
+
+This spins up three embodied agents (each in its own workspace/body), runs them
+in parallel, and prints the merged result — the user's real keyboard and mouse
+untouched. With `HELMR_WORKSPACE_PROVIDER=browser` and Playwright installed, each
+agent drives its own real browser context.
+
+> In-process note: the shared runtime is in-memory, so the orchestrator and the
+> Hatchery view must run in the same process to share state. A cross-process
+> (persisted) runtime is a future step.

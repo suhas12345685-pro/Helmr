@@ -192,6 +192,20 @@ export class MultiAgentRuntime {
     return body;
   }
 
+  failTask(agentId: string, error: string): AgentBody {
+    const body = this.require(agentId);
+    if (body.taskState.taskId) this.ledger.fail(body.taskState.taskId, error);
+    body.taskState = {
+      ...body.taskState,
+      status: 'failed',
+      error,
+      finishedAt: new Date().toISOString(),
+    };
+    body.status = 'error';
+    body.memory.append('fail_task', { error });
+    return body;
+  }
+
   pauseAgent(agentId: string): void {
     const body = this.require(agentId);
     if (body.status !== 'stopped') body.status = 'paused';

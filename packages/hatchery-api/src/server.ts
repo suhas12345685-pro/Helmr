@@ -521,7 +521,10 @@ export async function startHatcheryServer(options: HatcheryServerOptions = {}): 
   // Restore persisted provider keys into the environment before serving.
   await new SecretStore(configDir).loadInto(process.env);
 
-  const app = createHatcheryApp(store, router, configManager, dataDir);
+  // Share the process-wide embodied-agent runtime so the Agents page reflects
+  // whatever the orchestrator spawns in this process.
+  const { getAgentRuntime } = await import('../../../src/agent-runtime.js');
+  const app = createHatcheryApp(store, router, configManager, dataDir, getAgentRuntime());
   const nodeServer = serve({ fetch: app.fetch, port });
 
   // Hot-reload: keep a live snapshot of skills so newly created ones are picked
