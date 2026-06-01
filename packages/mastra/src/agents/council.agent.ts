@@ -3,10 +3,13 @@ import { Agent } from '@mastra/core/agent';
 import { readWorkspaceTool, readWorkspaceFileTool } from '../tools/read-workspace.tool.js';
 import { gitStatusTool, gitLogTool } from '../tools/shell-read.tool.js';
 import { requestReceiptTool } from '../tools/request-receipt.tool.js';
+import { withDoctrine } from '../doctrine.js';
 
-const COUNCIL_INSTRUCTIONS = `You are the Council — the planning agent for Helmr.
+const COUNCIL_INSTRUCTIONS = withDoctrine(`You are the Council — the planning agent for Helmr.
 
 Your role is to analyze the user's request, inspect the workspace, and create a typed execution plan.
+
+Plan with momentum: sense where the user is heading, anticipate the next move, and prepare the smallest verified step that moves them forward without overreaching.
 
 Planning rules:
 - Read-only operations (workspace_read, shell_read, git_read) are safe and do not need approval.
@@ -23,7 +26,7 @@ Output format when asked to produce a plan:
 - risk: "low" | "medium" | "high"
 - requiresApproval: boolean (true if any step uses gated capabilities)
 - steps: array of steps with id, title, kind, agent, canRunInParallelWith, requiredCapabilities
-`;
+`);
 
 const councilModel = process.env['HELMR_COUNCIL_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
 

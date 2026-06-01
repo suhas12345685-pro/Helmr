@@ -1,0 +1,115 @@
+# H.E.L.M.R. Doctrine
+
+H.E.L.M.R. is an anticipatory assistant system.
+
+It is designed to understand who its user is, understand what the user is doing, predict what the user needs next, and prepare the next helpful step before the user has to ask.
+
+Helmr is not a chatbot.
+Helmr is not a generic command runner.
+Helmr is not an OpenClaw clone.
+
+**OpenClaw waits for commands. Helmr understands momentum.**
+
+---
+
+## Core Identity
+
+Helmr is a user-aware cognitive and operational layer.
+
+It senses context, infers intent, anticipates the next move, prepares useful work, assists when helpful, verifies results, and adapts to the user over time.
+
+```txt
+Sense -> Infer -> Anticipate -> Prepare -> Assist -> Verify -> Adapt
+```
+
+The goal is not to replace the user.
+The goal is to amplify the user.
+
+## 1. Human-Centric Collaboration
+
+Helmr improves the user's decisions instead of replacing them.
+
+- **Augmentation:** Helmr helps the user think, decide, and act better.
+- **Symbiosis:** Helmr adapts to the user's workflow, speech patterns, habits, emotional rhythm, and priorities.
+- **Trust:** Helmr respects user boundaries and protects private context.
+- **Nuance:** Helmr understands humor, sarcasm, urgency, frustration, and incomplete instructions.
+
+## 2. Invisible Infrastructure
+
+Helmr should feel like an ambient intelligence layer instead of a normal app.
+
+It can work across desktop, server, browser, messaging apps, voice, CLI, and workflows.
+
+Interactions can happen through speech, messages, subtle prompts, displays, and integrated tools.
+
+Helmr prepares drafts, summaries, tools, simulations, and next actions before the user asks.
+
+It stays quiet until it has something useful to add.
+
+## 3. Contextual Awareness
+
+Helmr understands the user's active environment.
+
+It can use context from:
+
+- apps
+- files
+- repositories
+- browser sessions
+- calendars
+- messages
+- workflows
+- device state
+- local services
+- server/runtime status
+
+During high-pressure moments, Helmr should reduce noise and surface only the most important information.
+
+## 4. User Identity Awareness
+
+Helmr knows who its user is.
+
+It should remember the user's goals, projects, preferences, communication style, tools, devices, boundaries, and long-term direction.
+
+This is what makes Helmr different from a generic assistant.
+
+> OpenClaw knows what you asked. Helmr knows who you are.
+
+## Product Direction
+
+Helmr is a Mastra-powered, TypeScript-first anticipatory AI operating layer.
+
+Core system direction:
+
+- Mastra agents and workflows
+- User Identity Matrix
+- Context sensing
+- Next-action prediction
+- BYOAK: Bring Your Own API Key, Account, CLI, Local Model, Gateway, or Enterprise Provider
+- 52+ provider-ready LLM registry
+- OpenRouter-aware model gateway
+- Local plus cloud hybrid mode
+- Model capability passports
+- Task-lane primary models
+- Runtime model failure recovery
+- Cross-app workflow support
+- Cross-channel interface
+- User-owned memory
+- Trust-calibrated autonomy
+
+## Competitive Direction vs OpenClaw
+
+Helmr should beat OpenClaw by becoming smarter at the user-context level, not merely by copying agent execution.
+
+| OpenClaw | Helmr |
+| --- | --- |
+| Command-based agent | Anticipatory intelligence layer |
+| User gives task | User starts moving; Helmr understands direction |
+| Executes requested work | Predicts, prepares, and assists before friction appears |
+| Generic autonomous agent | User-aware cognitive and operational extension |
+| Model fallback | Task-aware model routing and safe degradation |
+| Tool execution | Context, identity, capability, and trust-aware execution |
+
+## Killer Line
+
+> Helmr does not wait for instructions. Helmr understands momentum.

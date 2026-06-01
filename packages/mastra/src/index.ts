@@ -16,6 +16,14 @@ export { readWorkspaceTool, readWorkspaceFileTool } from './tools/read-workspace
 export { shellReadTool, gitStatusTool, gitLogTool } from './tools/shell-read.tool.js';
 export { requestReceiptTool } from './tools/request-receipt.tool.js';
 export { createHelmrMemory, createInMemoryHelmrMemory } from './memory/mastra-memory.js';
+export {
+  HELMR_LOOP,
+  HELMR_DOCTRINE_PILLARS,
+  HELMR_KILLER_LINE,
+  HELMR_DOCTRINE_PREAMBLE,
+  withDoctrine,
+} from './doctrine.js';
+export type { HelmrLoopStage } from './doctrine.js';
 export type { HelmrPlan, HelmrEvent, HelmrJob, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
 
 export const mastra = new Mastra({
