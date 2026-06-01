@@ -19,12 +19,20 @@ import {
   shouldUseLocalAgentFallback,
   synthesizeLocalAnswer,
 } from './local-agent.js';
+import {
+  createSwarmPlan,
+  decomposeRequest,
+  looksLikeParallelResearch,
+  orchestrateSwarm,
+} from './swarm.js';
 import { getHelmrPaths } from './paths.js';
 
 export interface RunJobOptions {
   text: string;
   workspacePath?: string;
   jobId?: string;
+  /** Force the request into the research swarm regardless of auto-detection. */
+  forceSwarm?: boolean;
   onProgress?: (message: string) => void;
 }
 
@@ -105,9 +113,25 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
     plan = existingPlan;
 
     if (!plan) {
-      log('Planning...');
-      plan = await runCouncilPlanner(claimed.id, event.workspace.path, text);
-      await store.savePlan(plan);
+      // Auto-route wide, read-only research requests into the parallel swarm.
+      // The council's gated read-first flow still handles everything else.
+      if (options.forceSwarm || looksLikeParallelResearch(text)) {
+        log('Routing to research swarm (parallel fan-out)...');
+        const subtasks = decomposeRequest(text);
+        plan = createSwarmPlan(claimed.id, text, subtasks);
+        await store.savePlan(plan);
+        await store.createSwarm({
+          id: `swarm_${claimed.id}`,
+          jobId: claimed.id,
+          request: text,
+          subtasks,
+          status: 'planned',
+        });
+      } else {
+        log('Planning...');
+        plan = await runCouncilPlanner(claimed.id, event.workspace.path, text);
+        await store.savePlan(plan);
+      }
       await auditLog.append({ kind: 'plan', jobId: claimed.id, createdAt: new Date().toISOString(), data: plan });
     }
 
@@ -146,11 +170,21 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
     }
 
     log('Checking capabilities to select agent...');
+    const swarm = await store.getSwarmByJob(claimed.id);
     const requiresCodingAgent = planRequiresCodingAgent(plan);
 
     let answer = '';
 
-    if (requiresCodingAgent) {
+    if (swarm) {
+      log('Executing research swarm...');
+      const swarmResult = await orchestrateSwarm({
+        jobId: claimed.id,
+        workspacePath: event.workspace.path,
+        store,
+        log,
+      });
+      answer = swarmResult.answer;
+    } else if (requiresCodingAgent) {
       log('Plan requires coding agent execution. Prompting coding agent...');
       const codingPrompt = `You are tasked with executing the following approved code implementation plan:
 Plan Summary: ${plan.summary}

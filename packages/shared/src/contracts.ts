@@ -162,6 +162,52 @@ export function parseHelmrPlan(input: unknown): HelmrPlan {
   return HelmrPlanSchema.parse(input);
 }
 
+export const SwarmStatusSchema = z.enum(['planned', 'running', 'succeeded', 'failed']);
+export type SwarmStatus = z.infer<typeof SwarmStatusSchema>;
+
+export const SwarmTaskStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed']);
+export type SwarmTaskStatus = z.infer<typeof SwarmTaskStatusSchema>;
+
+/**
+ * A single fan-out unit of work within a research swarm. Persisted to SQLite so
+ * the orchestrator and the Hatchery view observe the same state across
+ * processes rather than relying on in-memory sharing.
+ */
+export const SwarmTaskSchema = z.object({
+  id: z.string().min(1),
+  swarmId: z.string().min(1),
+  title: z.string().min(1),
+  prompt: z.string().min(1),
+  status: SwarmTaskStatusSchema,
+  output: z.string().optional(),
+  error: z.string().optional(),
+  createdAt: IsoDateStringSchema,
+  updatedAt: IsoDateStringSchema,
+});
+
+export type SwarmTask = z.infer<typeof SwarmTaskSchema>;
+
+/**
+ * A research swarm: a wide request decomposed into parallel subtasks that are
+ * executed concurrently and synthesized into a single answer.
+ */
+export const SwarmSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  request: z.string().min(1),
+  subtasks: z.array(z.string().min(1)).min(1),
+  status: SwarmStatusSchema,
+  summary: z.string().optional(),
+  createdAt: IsoDateStringSchema,
+  updatedAt: IsoDateStringSchema,
+});
+
+export type Swarm = z.infer<typeof SwarmSchema>;
+
+export function parseSwarm(input: unknown): Swarm {
+  return SwarmSchema.parse(input);
+}
+
 export const ToolReceiptSchema = z
   .object({
     id: z.string().min(1),

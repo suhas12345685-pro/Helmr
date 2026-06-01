@@ -1675,3 +1675,28 @@ helmr ask -> event -> job -> plan -> verify -> read-only tools -> audit -> Hatch
 ```
 
 Once that loop is solid, Helmr can grow into parallel sub-agents, browser tools, MCP integrations, WebUI, remote channels, and long-running autonomous workflows.
+
+## Research swarms (parallel fan-out)
+
+Wide, read-only research requests are decomposed into independent subtasks and
+executed concurrently as a *swarm*, then synthesized into a single answer.
+
+- **Auto-routing.** `runJob` calls `looksLikeParallelResearch()` on the incoming
+  text. Qualifying requests (research/compare/investigate intent that decomposes
+  into 2+ subtasks, or an explicit enumeration) are routed to the swarm instead
+  of the council's read-first plan. Coding/write intent is explicitly excluded so
+  the gated execution path is never bypassed. The `helmr swarm "<text>"` command
+  forces this path regardless of detection.
+- **Plan parity.** A swarm still produces a normal low-risk `HelmrPlan` (one
+  read-only step per subtask), so Cortex policy, approvals, and the Hatchery job
+  view all behave exactly as they do for any other job.
+- **Persisted, cross-process state.** Swarm and subtask state live in SQLite
+  (`swarms` and `swarm_tasks` tables, schema v3), not in process memory. The
+  orchestrator writes each subtask transition (queued → running →
+  succeeded/failed) as it happens, and the Hatchery process reads the same rows
+  via `GET /api/swarms` and `GET /api/swarms/:id`. This is the persisted runtime
+  that earlier replaced the in-memory-only sharing constraint: orchestrator and
+  Hatchery no longer need to run in the same process to observe swarm progress.
+- **Graceful local fallback.** With no model provider configured, subtasks are
+  recorded and synthesized deterministically (mirroring the local read-only
+  agent loop) rather than failing.
