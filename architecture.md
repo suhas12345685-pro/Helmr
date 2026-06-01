@@ -903,9 +903,22 @@ chat message
   -> next list_skills auto-discovers it -> the skill is live
 ```
 
-Because `skill_write` is in the approval-gated set, Helmr never silently rewrites its own behavior: changing code or adding a skill produces a receipt and (by default) waits for human approval, inside the one-writer workspace lock. The autonomy dial is the principal's **trust level** — an `owner` can grant standing approval for low-risk skill writes, while limited/untrusted principals always require an explicit confirmation. Same momentum, same brakes.
+Because `skill_write` is in the approval-gated set, Helmr never silently rewrites its own behavior: changing code or adding a skill produces a receipt that passes through the safety core.
 
-Implemented today: the skill manifest + registry + auto-discovery, the `skill_read`/`skill_write` capabilities, the `list_skills` tool, and the `create_skill` execution path in Hands (gated through Cortex + approvals). Pending: live in-process hot-reload of long-running agents (currently a skill is picked up on the next listing rather than pushed to an already-running agent loop), and a Hatchery surface for browsing/enabling/disabling skills.
+**Trust-calibrated autonomy.** The dial is the principal's trust level, implemented in `cortex/policy.ts` via `hasStandingApproval()`: an `owner` has *standing approval* for low-risk skill writes, so a `create_skill` receipt runs immediately and feels automatic — while a higher-risk write, or any write from a less-trusted principal, still pauses for explicit confirmation. Standing approval can be turned off globally with `HELMR_SKILL_AUTONOMY=manual`. Same momentum, same brakes.
+
+**Global, hot-reloaded skills.** Skills live in Helmr's own data dir (`<dataDir>/skills`), not per-project, so they are shared across workspaces. The `SkillRegistry` re-reads the directory on every `list()` (so the Hatchery API is always fresh) and additionally offers `watch()` — an `fs.watch`-backed, debounced, self-`unref`-ing live snapshot (`load()`/`cached()`) that the long-running server subscribes to, so a newly written skill is hot-reloaded with no restart.
+
+The chat-to-skill flow end to end:
+
+```txt
+chat -> event -> plan -> coding agent requests create_skill (skill_write)
+     -> owner standing approval (or explicit approval if gated)
+     -> Hands writes the manifest to <dataDir>/skills
+     -> registry watch() hot-reloads -> Hatchery Skills page + agents see it live
+```
+
+Implemented today: the skill manifest + registry with auto-discovery and `watch()` hot-reload; the `skill_read`/`skill_write` capabilities; the `list_skills` tool and `create_skill` execution in Hands; owner standing approval (`hasStandingApproval` / `HELMR_SKILL_AUTONOMY`); the Hatchery **Skills** page and `/api/skills` CRUD for browsing, creating, enabling/disabling, and deleting skills.
 
 ---
 

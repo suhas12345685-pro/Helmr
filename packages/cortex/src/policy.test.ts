@@ -1,7 +1,48 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { evaluatePlan, evaluateToolReceipt } from './policy.js';
+import {
+  evaluatePlan,
+  evaluateToolReceipt,
+  hasStandingApproval,
+  getSkillAutonomy,
+} from './policy.js';
+
+test('owner has standing approval for low-risk skill writes', () => {
+  assert.equal(
+    hasStandingApproval(
+      { capability: 'skill_write', risk: 'low' },
+      { trustLevel: 'owner', autonomy: 'standing' },
+    ),
+    true,
+  );
+});
+
+test('standing approval is withheld for non-owners, high risk, manual mode, or other writes', () => {
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'trusted', autonomy: 'standing' }),
+    false,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'high' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    false,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'manual' }),
+    false,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'workspace_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    false,
+  );
+});
+
+test('getSkillAutonomy defaults to standing and respects manual override', () => {
+  assert.equal(getSkillAutonomy({}), 'standing');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'manual' }), 'manual');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'MANUAL' }), 'manual');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'whatever' }), 'standing');
+});
 
 test('read-only plan is allowed without approval', () => {
   const decision = evaluatePlan({

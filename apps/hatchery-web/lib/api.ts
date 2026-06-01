@@ -257,6 +257,44 @@ export async function restartDaemon(): Promise<void> {
   await apiFetch<void>('/api/daemon/restart', { method: 'POST' });
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  kind: 'skill' | 'plugin';
+  triggers: string[];
+  instructions: string;
+  source: 'builtin' | 'generated' | 'user';
+  enabled: boolean;
+  version: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function fetchSkills(): Promise<Skill[]> {
+  const data = await apiFetch<unknown>('/api/skills', { allowErrorStatus: true });
+  const list = unwrap<unknown>(data, 'skills');
+  return Array.isArray(list) ? (list as Skill[]) : [];
+}
+
+export async function setSkillEnabled(id: string, enabled: boolean): Promise<void> {
+  await apiFetch<void>(`/api/skills/${id}/enabled`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+export async function deleteSkill(id: string): Promise<void> {
+  await apiFetch<void>(`/api/skills/${id}`, { method: 'DELETE' });
+}
+
+export async function createSkill(skill: Partial<Skill> & { id: string; name: string; description: string }): Promise<void> {
+  await apiFetch<void>('/api/skills', {
+    method: 'POST',
+    body: JSON.stringify(skill),
+  });
+}
+
 export async function fetchConfigFile(file: string): Promise<string> {
   const data = await apiFetch<unknown>(`/api/config/${file}`, { allowErrorStatus: true });
   return isRecord(data) && typeof data['content'] === 'string' ? data['content'] : '';

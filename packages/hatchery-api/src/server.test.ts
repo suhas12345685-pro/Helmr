@@ -155,6 +155,64 @@ test('configuring a provider persists the API key durably for restart', async ()
   }
 });
 
+test('skills API creates, lists, toggles, and deletes self-taught skills', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-skills-api-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+    const headers = { 'content-type': 'application/json', 'x-forwarded-for': 'skills-api' };
+
+    // Empty to start.
+    const empty = await app.request('/api/skills', { headers });
+    assert.deepEqual(await empty.json(), { skills: [] });
+
+    // Create.
+    const created = await app.request('/api/skills', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'summarize-pr', name: 'Summarize PR', description: 'Summarize a PR' }),
+    });
+    assert.equal(created.status, 200);
+
+    // Listed.
+    const listed = await app.request('/api/skills', { headers });
+    const body = (await listed.json()) as { skills: Array<{ id: string; enabled: boolean }> };
+    assert.equal(body.skills.length, 1);
+    assert.equal(body.skills[0]?.enabled, true);
+
+    // Toggle off.
+    const toggled = await app.request('/api/skills/summarize-pr/enabled', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ enabled: false }),
+    });
+    assert.equal(toggled.status, 200);
+    const afterToggle = (await (await app.request('/api/skills', { headers })).json()) as {
+      skills: Array<{ enabled: boolean }>;
+    };
+    assert.equal(afterToggle.skills[0]?.enabled, false);
+
+    // Invalid manifest rejected.
+    const bad = await app.request('/api/skills', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'Bad Id', name: 'x', description: 'y' }),
+    });
+    assert.equal(bad.status, 400);
+
+    // Delete.
+    const removed = await app.request('/api/skills/summarize-pr', { method: 'DELETE', headers });
+    assert.equal(removed.status, 200);
+    const missing = await app.request('/api/skills/summarize-pr', { method: 'DELETE', headers });
+    assert.equal(missing.status, 404);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
 test('channels persist pairing-required configuration and activate after code verification', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'helmr-channel-test-'));
   try {

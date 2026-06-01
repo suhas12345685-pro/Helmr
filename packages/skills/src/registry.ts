@@ -1,4 +1,5 @@
 import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { watch as fsWatch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 
 import { parseSkillManifest, type SkillManifest } from './manifest.js';
@@ -15,6 +16,9 @@ const SKILL_FILE_SUFFIX = '.skill.json';
 export class SkillRegistry {
   constructor(private readonly skillsDir: string) {}
 
+  /** Last loaded in-memory snapshot, for live (hot-reloaded) consumers. */
+  private snapshot: SkillManifest[] = [];
+
   /** Absolute path of the skills directory this registry owns. */
   get dir(): string {
     return this.skillsDir;
@@ -22,6 +26,52 @@ export class SkillRegistry {
 
   async init(): Promise<void> {
     await mkdir(this.skillsDir, { recursive: true });
+  }
+
+  /** Refresh the in-memory snapshot from disk and return it. */
+  async load(): Promise<SkillManifest[]> {
+    this.snapshot = await this.list();
+    return this.snapshot;
+  }
+
+  /** The last loaded snapshot, without touching disk. */
+  cached(): SkillManifest[] {
+    return this.snapshot;
+  }
+
+  /**
+   * Watch the skills directory and hot-reload the snapshot whenever a skill is
+   * created, updated, or removed — so long-running consumers (the daemon, the
+   * Hatchery server) reflect a new skill the instant it lands, with no restart.
+   * Returns an unsubscribe function.
+   */
+  watch(onChange?: (skills: SkillManifest[]) => void): () => void {
+    let watcher: FSWatcher | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      // Debounce: editors and writes often emit several events in a burst.
+      timer = setTimeout(() => {
+        void this.load().then((skills) => onChange?.(skills));
+      }, 50);
+    };
+
+    void this.init().then(() => {
+      try {
+        watcher = fsWatch(this.skillsDir, refresh);
+        // Never let a forgotten watcher keep a process alive on its own.
+        watcher.unref?.();
+      } catch {
+        // Watching is best-effort; consumers can still call load() on demand.
+      }
+      void this.load().then((skills) => onChange?.(skills));
+    });
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      watcher?.close();
+    };
   }
 
   /** All skills on disk. Malformed skill files are skipped, never thrown. */

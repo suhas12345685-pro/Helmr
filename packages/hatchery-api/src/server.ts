@@ -16,6 +16,7 @@ import { normalizeRequestId } from '../../shared/src/request-id.js';
 import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../shared/src/rate-limit.js';
 import { ChannelConfigStore, isKnownChannelName } from '../../channels/src/channel-config.js';
 import { DreamJournal } from '../../memory/src/dream.js';
+import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 
 export interface HatcheryServerOptions {
@@ -98,6 +99,10 @@ export function createHatcheryApp(
   const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
   const dreamJournal = new DreamJournal(dataDir);
   const secrets = new SecretStore(configManager.dir);
+  // Skills are read fresh from disk on each request, so the API always reflects
+  // the latest self-taught abilities. The long-running server (startHatcheryServer)
+  // additionally watches the directory to hot-reload in-process consumers.
+  const skills = new SkillRegistry(globalSkillsDir(dataDir));
 
   app.use('*', async (c, next) => {
     c.header('X-Request-Id', normalizeRequestId(c.req.header('x-request-id')));
@@ -380,6 +385,53 @@ export function createHatcheryApp(
     return c.json({ file, saved: true });
   });
 
+  // GET /api/skills — list Helmr's auto-discovered skills
+  app.get('/api/skills', async (c) => {
+    return c.json({ skills: await skills.list() });
+  });
+
+  // POST /api/skills — owner creates or updates a skill directly from Hatchery
+  app.post('/api/skills', async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    let manifest;
+    try {
+      manifest = parseSkillManifest(body);
+    } catch (err) {
+      return c.json({ error: `invalid skill manifest: ${(err as Error).message}` }, 400);
+    }
+    return c.json({ skill: await skills.write(manifest) });
+  });
+
+  // POST /api/skills/:id/enabled — toggle a skill on or off
+  app.post('/api/skills/:id/enabled', async (c) => {
+    const { id } = c.req.param();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid JSON' }, 400);
+    }
+    const { enabled } = body as { enabled?: boolean };
+    if (typeof enabled !== 'boolean') {
+      return c.json({ error: 'enabled boolean required' }, 400);
+    }
+    const updated = await skills.setEnabled(id, enabled);
+    if (!updated) return c.json({ error: 'not found' }, 404);
+    return c.json({ skill: updated });
+  });
+
+  // DELETE /api/skills/:id — remove a skill
+  app.delete('/api/skills/:id', async (c) => {
+    const removed = await skills.remove(c.req.param('id'));
+    if (!removed) return c.json({ error: 'not found' }, 404);
+    return c.json({ removed: true });
+  });
+
   // GET /api/self-test
   app.get('/api/self-test', async (c) => {
     const checks = await runSelfTest();
@@ -451,8 +503,13 @@ export async function startHatcheryServer(options: HatcheryServerOptions = {}): 
   const app = createHatcheryApp(store, router, configManager, dataDir);
   const nodeServer = serve({ fetch: app.fetch, port });
 
+  // Hot-reload: keep a live snapshot of skills so newly created ones are picked
+  // up the instant they land, with no restart.
+  const stopSkillWatch = new SkillRegistry(globalSkillsDir(dataDir)).watch();
+
   return {
     close: async () => {
+      stopSkillWatch();
       await new Promise<void>((resolve) => nodeServer.close(() => resolve()));
     },
   };

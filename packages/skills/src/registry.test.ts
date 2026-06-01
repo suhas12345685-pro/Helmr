@@ -91,3 +91,32 @@ test('matchSkills returns enabled skills whose triggers appear in the text', asy
 test('parseSkillManifest rejects ids that are not lower-case slugs', () => {
   assert.throws(() => parseSkillManifest({ id: 'Bad Id', name: 'x', description: 'y' }));
 });
+
+test('load refreshes the cached snapshot from disk', async () => {
+  const registry = await tempRegistry();
+  assert.deepEqual(registry.cached(), []);
+
+  await registry.write(parseSkillManifest({ id: 'a', name: 'A', description: 'a' }));
+  const loaded = await registry.load();
+  assert.equal(loaded.length, 1);
+  assert.equal(registry.cached().length, 1);
+
+  await registry.write(parseSkillManifest({ id: 'b', name: 'B', description: 'b' }));
+  await registry.load();
+  assert.equal(registry.cached().length, 2);
+});
+
+test('watch performs an initial load, populates the cache, and is stoppable', async () => {
+  const registry = await tempRegistry();
+  await registry.write(parseSkillManifest({ id: 'live', name: 'Live', description: 'live' }));
+
+  const initial = await new Promise<{ id: string }[]>((resolve) => {
+    const stop = registry.watch((skills) => {
+      stop();
+      resolve(skills);
+    });
+  });
+
+  assert.ok(initial.some((s) => s.id === 'live'));
+  assert.ok(registry.cached().some((s) => s.id === 'live'));
+});
