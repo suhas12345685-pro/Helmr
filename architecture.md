@@ -64,6 +64,13 @@ Helmr should beat OpenClaw by becoming smarter at the user-context level, not me
 
 > Helmr does not wait for instructions. Helmr understands momentum.
 
+### 0.6 Soul and Embodiment
+
+Two layers make the doctrine concrete (full detail in `docs/soul-and-embodiment.md`):
+
+- **Soul layer.** `/soul.md` is Helmr's constitution — identity, the Operator bond, prime directive, loyalty, chaos-mode behavior, autonomy boundaries, and multi-agent coordination philosophy. It is the source of truth, loaded at runtime by `src/soul.ts` (`SoulLoader`, fail-safe) and spliced into agent prompts via `buildSoulContext()`.
+- **Embodiment runtime.** `packages/embodiment` lets Helmr spin up many agents, each with its own isolated body — virtual eyes (`VisualPerceptionStream`, structured live perception, *not* screenshot/OCR), `VirtualKeyboard`, `VirtualMouse`, workspace/session, memory, and a coordination channel. Components: `WorkspaceProvider` (mock + driver-injected browser, extensible to container/VM/VNC/app), `MultiAgentRuntime`, `CoordinationBus`, `TaskLedger`, and a deny-by-default permission system. **No agent ever uses the Operator's real keyboard, mouse, or cursor** — every body is isolated.
+
 ---
 
 ## 1. Current Project State
@@ -73,7 +80,8 @@ The workspace has moved beyond the original placeholder scaffold into an impleme
 - `architecture.md`, this blueprint and implementation-status reference.
 - `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `pnpm-workspace.yaml`, and workspace-aware verification scripts.
 - `src/`, including the CLI, daemon/runtime entrypoints, self-test, local planner fallback, and production-readiness helpers.
-- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, and `packages/create-helmr`, each with a package manifest.
+- `packages/shared`, `packages/gateway`, `packages/scheduler`, `packages/cortex`, `packages/hands`, `packages/memory`, `packages/mastra`, `packages/council`, `packages/router`, `packages/subagents`, `packages/channels`, `packages/config`, `packages/hatchery-api`, `packages/mcp`, `packages/browser`, `packages/sandbox`, `packages/skills` (self-extension), `packages/embodiment` (multi-agent embodied runtime), and `packages/create-helmr`, each with a package manifest.
+- `soul.md`, Helmr's constitution, loaded by `src/soul.ts`.
 - `apps/hatchery-web` and `apps/hatchery-tui`.
 - `docs/`, `deploy/`, `scripts/install.sh` / `scripts/install.ps1`, and user service install helpers production/deployment support files.
 - `node_modules`, installed packages for local development and verification.
