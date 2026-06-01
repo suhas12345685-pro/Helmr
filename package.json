@@ -30,6 +30,7 @@
     "@ai-sdk/perplexity": "^3.0.33",
     "@ai-sdk/xai": "^3.0.92",
     "@hono/node-server": "^1.19.14",
+    "@libsql/client": "^0.17.3",
     "@mastra/client-js": "^1.21.1",
     "@mastra/core": "^1.37.1",
     "@mastra/libsql": "^1.11.1",
