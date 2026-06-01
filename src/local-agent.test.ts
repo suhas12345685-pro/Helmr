@@ -6,6 +6,7 @@ import {
   planRequiresCodingAgent,
   synthesizeLocalAnswer,
   shouldUseLocalAgentFallback,
+  extractRequestedFiles,
 } from './local-agent.js';
 
 test('local planner creates a safe read-only workspace summary plan', () => {
@@ -54,6 +55,42 @@ test('local synthesizer returns concrete workspace observations and next steps',
   assert.match(answer, /architecture.md/);
   assert.match(answer, /Next Development Steps/);
   assert.match(answer, /git repository/);
+});
+
+
+
+test('local planner builds dynamic read-only steps from file and git history requests', () => {
+  const plan = createLocalPlan({
+    jobId: 'job_dynamic',
+    request: 'review README.md and packages/shared/src/contracts.ts, then include git history',
+  });
+
+  assert.equal(plan.risk, 'low');
+  assert.equal(plan.requiresApproval, false);
+  assert.match(plan.summary, /Dynamically inspect/);
+  assert.deepEqual(
+    plan.steps.map((step) => step.id),
+    [
+      'inspect_workspace',
+      'read_file_readme_md',
+      'read_file_packages_shared_src_contracts_ts',
+      'git_status',
+      'git_log',
+    ],
+  );
+  assert.deepEqual(plan.steps[1]?.requiredCapabilities, ['workspace_read']);
+  assert.deepEqual(plan.steps[3]?.requiredCapabilities, ['git_read']);
+  assert.deepEqual(plan.steps[0]?.canRunInParallelWith, [
+    'read_file_readme_md',
+    'read_file_packages_shared_src_contracts_ts',
+  ]);
+});
+
+test('requested file extraction is deterministic and rejects unsafe paths', () => {
+  assert.deepEqual(
+    extractRequestedFiles('compare ./README.md, src/runtime.ts, ../secret.env, and /tmp/other.txt'),
+    ['README.md', 'src/runtime.ts'],
+  );
 });
 
 test('local fallback is used when no model provider key or explicit model is configured', () => {
