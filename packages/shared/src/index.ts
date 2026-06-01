@@ -1,4 +1,5 @@
 export * from './contracts.js';
+export * from './capabilities.js';
 export * from './http-auth.js';
 export * from './http-limits.js';
 export * from './http-security.js';

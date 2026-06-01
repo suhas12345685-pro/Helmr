@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { evaluateToolReceipt } from '../../cortex/src/policy.js';
+import { evaluateAutonomousReceipt } from '../../cortex/src/policy.js';
+import { runBrowserAction } from './browser-tools.js';
 import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
@@ -17,7 +18,9 @@ import { runShellRead, runGitStatus, runGitLog } from './shell-tools.js';
 import type { ToolReceipt, ToolResult } from '../../shared/src/index.js';
 
 export async function executeReceipt(receipt: ToolReceipt, workspacePath: string): Promise<ToolResult> {
-  const decision = evaluateToolReceipt(receipt);
+  // Tiered gate: inward writes keep their approval gating, and outward actions
+  // (network, browser) are gated unless pre-authorized (standing) or approved.
+  const decision = evaluateAutonomousReceipt(receipt);
 
   if (!decision.allowed) {
     return makeResult(receipt, 'failed', undefined, `denied: ${decision.reasons.join('; ')}`);
@@ -75,6 +78,13 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
       return npmInstall(workspacePath, input['packages'] as string[], {
         dev: input['dev'] === true,
         exact: input['exact'] === true,
+      });
+
+    case 'browser_automation':
+      return runBrowserAction({
+        url: input['url'] as string,
+        goal: input['goal'] as string | undefined,
+        readonly: input['readonly'] !== false,
       });
 
     case 'list_skills':

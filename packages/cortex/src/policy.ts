@@ -5,6 +5,7 @@ import {
   type PlanRisk,
   type PrincipalTrustLevel,
   isApprovalGatedCapability,
+  isOutwardCapability,
 } from '../../shared/src/index.js';
 
 export interface PolicyDecision {
@@ -82,4 +83,68 @@ export function evaluateToolReceipt(receipt: ToolReceipt): PolicyDecision {
     requiresApproval: true,
     reasons: [`${receipt.capability} is gated and approval is ${receipt.approval}`],
   };
+}
+
+/**
+ * The autonomy tier of an action under the "Own Body, Guarded Edge" model
+ * (docs/autonomy-roadmap.md):
+ *   - `auto`     inward, reversible — runs on the agent's own initiative.
+ *   - `standing` outward but a pre-authorized class — runs without a prompt,
+ *                within budget.
+ *   - `gated`    outward / high-blast-radius — hard stop until explicit authority.
+ */
+export type PolicyTier = 'auto' | 'standing' | 'gated';
+
+/**
+ * Which outward capabilities the Operator has pre-authorized to run under
+ * standing approval. Everything outward not listed here is `gated`.
+ */
+export interface OutwardPolicy {
+  standing: Set<Capability>;
+}
+
+export function resolveOutwardPolicy(
+  env: Record<string, string | undefined> = process.env,
+): OutwardPolicy {
+  const raw = env['HELMR_STANDING_OUTWARD']?.trim();
+  const standing = new Set<Capability>();
+  if (raw) {
+    for (const part of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+      standing.add(part as Capability);
+    }
+  }
+  return { standing };
+}
+
+export interface TierDecision extends PolicyDecision {
+  tier: PolicyTier;
+}
+
+/**
+ * Classify a receipt into an autonomy tier and decide whether it may run without
+ * pausing. Inward approval-gated writes keep their existing gated behavior;
+ * outward capabilities are `standing` (pre-authorized) or `gated`.
+ */
+export function evaluateAutonomousReceipt(
+  receipt: ToolReceipt,
+  policy: OutwardPolicy = resolveOutwardPolicy(),
+): TierDecision {
+  if (isOutwardCapability(receipt.capability)) {
+    if (receipt.approval === 'approved') {
+      return { tier: 'standing', allowed: true, requiresApproval: false, reasons: [] };
+    }
+    if (policy.standing.has(receipt.capability)) {
+      return { tier: 'standing', allowed: true, requiresApproval: false, reasons: [] };
+    }
+    return {
+      tier: 'gated',
+      allowed: false,
+      requiresApproval: true,
+      reasons: [`${receipt.capability} is an outward action and requires explicit authority`],
+    };
+  }
+
+  const base = evaluateToolReceipt(receipt);
+  const tier: PolicyTier = isApprovalGatedCapability(receipt.capability) ? 'gated' : 'auto';
+  return { ...base, tier };
 }
