@@ -80,6 +80,7 @@ test('e2e: a read-only job runs end-to-end and leaves a verifiable audit trail',
   // 1. Runtime produced a terminal success with a typed plan.
   assert.equal(result.status, 'succeeded');
   assert.ok(result.jobId.startsWith('job_'));
+  assert.ok(result.plan, 'plan should be present on success');
   assert.equal(result.plan.jobId, result.jobId);
   assert.equal(result.plan.risk, 'low');
   assert.match(result.answer, /Workspace Summary/);

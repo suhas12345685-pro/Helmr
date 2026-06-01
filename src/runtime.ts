@@ -3,6 +3,9 @@ import { join } from 'node:path';
 
 import { normalizeCliEvent } from '../packages/gateway/src/normalize-event.js';
 import { SqliteWorkspaceLockManager } from '../packages/scheduler/src/sqlite-workspace-lock.js';
+import { KillSwitch } from '../packages/scheduler/src/kill-switch.js';
+import { BudgetLedger } from '../packages/scheduler/src/budget.js';
+import { createCheckpoint, restoreCheckpoint, discardCheckpoint } from '../packages/hands/src/checkpoint.js';
 import { JsonlAuditLog } from '../packages/memory/src/audit-jsonl.js';
 import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import type { HelmrStoreJob } from '../packages/memory/src/sqlite-store.js';
@@ -40,8 +43,8 @@ export interface RunJobOptions {
 export interface RunJobResult {
   jobId: string;
   answer: string;
-  plan: HelmrPlan;
-  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval';
+  plan?: HelmrPlan;
+  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'halted';
   deniedReasons?: string[];
 }
 
@@ -55,7 +58,27 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
   const store = new HelmrSQLiteStore(join(paths.dataDir, 'helmr.db'));
   await store.init();
 
-  const locks = await SqliteWorkspaceLockManager.create({ url: `file:${join(paths.dataDir, 'helmr.db')}` });
+  const dbUrl = `file:${join(paths.dataDir, 'helmr.db')}`;
+  const locks = await SqliteWorkspaceLockManager.create({ url: dbUrl });
+  const killSwitch = await KillSwitch.create({ url: dbUrl });
+  const budget = await BudgetLedger.create({ url: dbUrl });
+
+  // Kill-switch: the Operator's recall on autonomy. If engaged, no new work
+  // starts. (soul.md: "Autonomy is a loan of trust, and it can be recalled.")
+  if (await killSwitch.isHalted()) {
+    const reason = (await killSwitch.haltReason()) ?? 'kill-switch engaged';
+    log(`Halted by kill-switch: ${reason}`);
+    killSwitch.close();
+    budget.close();
+    locks.close();
+    store.close();
+    return {
+      jobId: options.jobId ?? `job_${randomUUID()}`,
+      answer: `Halted by kill-switch: ${reason}`,
+      status: 'halted',
+      deniedReasons: [reason],
+    };
+  }
 
   log('Creating event...');
   const event = normalizeCliEvent({ text, workspacePath });
@@ -187,6 +210,19 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
       answer = swarmResult.answer;
     } else if (requiresCodingAgent) {
       log('Plan requires coding agent execution. Prompting coding agent...');
+      // Checkpoint the workspace before an autonomous write-batch so a mistake
+      // is one rollback away (edge boundary: checkpoint & rollback).
+      const checkpoint = await createCheckpoint(event.workspace.path, join(paths.dataDir, 'checkpoints'))
+        .catch(() => undefined);
+      if (checkpoint) {
+        log(`Checkpointed workspace before write (${checkpoint.id}).`);
+        await auditLog.append({
+          kind: 'checkpoint',
+          jobId: claimed.id,
+          createdAt: new Date().toISOString(),
+          data: { checkpointId: checkpoint.id },
+        });
+      }
       const codingPrompt = `${buildSoulContext()}You are tasked with executing the following approved code implementation plan:
 Plan Summary: ${plan.summary}
 Job ID: ${plan.jobId}
@@ -217,11 +253,32 @@ INSTRUCTIONS:
 4. After completing code modifications, you MUST verify that the changes compile cleanly. Use the \`shell_read\` tool to run typechecks or compiler commands (e.g. \`tsc --noEmit\` or \`npm run typecheck\`).
 5. Provide a summary of your actions once all steps are successfully completed.`;
 
-      const result = await codingAgent.generate([{ role: 'user', content: codingPrompt }]);
-      answer = result.text ?? '';
+      try {
+        const result = await codingAgent.generate([{ role: 'user', content: codingPrompt }]);
+        answer = result.text ?? '';
+        if (checkpoint) await discardCheckpoint(checkpoint).catch(() => undefined);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // An approval pause is not a failure — keep the workspace as-is.
+        if (checkpoint && !msg.includes('Awaiting human approval')) {
+          log('Coding step failed; rolling back workspace to checkpoint...');
+          await restoreCheckpoint(checkpoint).catch(() => undefined);
+          await auditLog.append({
+            kind: 'rollback',
+            jobId: claimed.id,
+            createdAt: new Date().toISOString(),
+            data: { checkpointId: checkpoint.id, reason: msg },
+          });
+        }
+        throw err;
+      }
     } else {
       log('Executing approved steps...');
-      answer = await executeReadPlan(plan, event.workspace.path, text, log, store);
+      answer = await executeReadPlan(plan, event.workspace.path, text, log, store, {
+        budget,
+        killSwitch,
+        jobId: claimed.id,
+      });
     }
 
     await auditLog.append({
@@ -257,6 +314,8 @@ INSTRUCTIONS:
   } finally {
     await locks.release(lock);
     locks.close();
+    killSwitch.close();
+    budget.close();
     store.close();
   }
 }
@@ -280,17 +339,38 @@ The plan id should be "plan_${jobId}".`;
   return result.object as HelmrPlan;
 }
 
+interface ExecuteReadPlanGuards {
+  budget: BudgetLedger;
+  killSwitch: KillSwitch;
+  jobId: string;
+}
+
 async function executeReadPlan(
   plan: HelmrPlan,
   workspacePath: string,
   originalRequest: string,
   log: (msg: string) => void,
   store: HelmrSQLiteStore,
+  guards?: ExecuteReadPlanGuards,
 ): Promise<string> {
   log('Starting step-by-step read execution...');
   const stepOutputs: Record<string, unknown> = {};
 
   for (const step of plan.steps) {
+    // Kill-switch: stop between steps the moment autonomy is recalled.
+    if (guards && (await guards.killSwitch.isHalted())) {
+      log('Kill-switch engaged — stopping execution.');
+      break;
+    }
+    // Budget: stop before taking another action if a ceiling is reached.
+    if (guards) {
+      const check = await guards.budget.check(guards.jobId);
+      if (!check.allowed) {
+        log(`Budget limit reached (${check.trippedLimit}) — stopping execution.`);
+        break;
+      }
+    }
+
     log(`Running step: ${step.title} (${step.id})`);
     
     let toolName = '';
@@ -336,9 +416,10 @@ async function executeReadPlan(
       
       const { executeReceipt } = await import('../packages/hands/src/executor.js');
       const result = await executeReceipt(receipt, workspacePath);
-      
+
       await store.saveResult(result);
-      
+      if (guards) await guards.budget.recordAction(guards.jobId);
+
       if (result.status === 'succeeded') {
         stepOutputs[step.id] = result.output;
         log(`Step ${step.id} completed successfully`);
