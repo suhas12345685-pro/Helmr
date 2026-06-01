@@ -135,6 +135,33 @@ After restoring, verify integrity:
 - The hash-chained audit logs detect tampering per job; a restored chain that
   fails verification indicates a corrupt or partial copy.
 
-> Database migrations are currently forward-only (schema v1). Until a rollback
-> path exists, take a backup with the steps above **before** upgrading to a
-> build that bumps the schema version, so you can roll back by restoring.
+## Schema migrations and rollback
+
+The control-plane schema is managed by versioned, reversible migrations
+(`packages/memory/src/migrations.ts`). On startup the store applies any pending
+forward migrations automatically and records each version in
+`schema_migrations`.
+
+Both upgrades and rollbacks take an automatic, SQLite-consistent snapshot
+(`VACUUM INTO`) into `$HELMR_DATA_DIR/migration-backups/` first, so the
+operation is always recoverable even if it fails partway.
+
+```bash
+# Inspect the current vs. latest schema version:
+helmr migrate status
+
+# Roll the schema back to an earlier version (e.g. before a bad upgrade).
+# A pre-rollback snapshot is written automatically.
+helmr migrate rollback 1
+```
+
+Rolling back runs each migration's reverse step newest-first. Re-running the
+daemon (or `helmr migrate status`) re-applies the forward migrations, so an
+upgrade → rollback → upgrade cycle is safe and idempotent. Databases created by
+older single-version initializers are backfilled with their full migration
+history on first run, so intermediate rollbacks work on existing deployments.
+
+> Even with rollback support, take a backup with the steps above **before** a
+> major upgrade. Down-migrations that drop columns or tables are inherently
+> lossy for the data in them; restoring a pre-upgrade snapshot is the safest way
+> to recover the original state in full.

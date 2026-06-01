@@ -1,9 +1,23 @@
 import { createClient, type Client } from '@libsql/client';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { HelmrJob, HelmrPlan, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
+import {
+  LATEST_SCHEMA_VERSION,
+  MIGRATIONS,
+  getAppliedVersion,
+  migrateToLatest,
+  rollbackToVersion,
+  type MigrationStep,
+} from './migrations.js';
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = LATEST_SCHEMA_VERSION;
+
+export interface SchemaStatus {
+  current: number;
+  latest: number;
+  pending: number[];
+}
 
 export interface JobRow {
   id: string;
@@ -46,85 +60,71 @@ export class HelmrSQLiteStore {
     await mkdir(dirname(this.dbPath), { recursive: true });
     this.db?.close();
     this.db = createClient({ url: `file:${this.dbPath}` });
+
+    // The migration ledger is the one table the runner needs up front.
     await this.client.executeMultiple(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
-        applied_at TEXT NOT NULL
+        applied_at TEXT NOT NULL,
+        description TEXT
       );
-
-      CREATE TABLE IF NOT EXISTS jobs (
-        id TEXT PRIMARY KEY,
-        event_id TEXT NOT NULL,
-        workspace_id TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'queued',
-        lane TEXT NOT NULL DEFAULT 'interactive',
-        priority INTEGER NOT NULL DEFAULT 50,
-        attempts INTEGER NOT NULL DEFAULT 0,
-        max_attempts INTEGER NOT NULL DEFAULT 3,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        lease_until TEXT,
-        last_error TEXT,
-        payload_text TEXT,
-        workspace_path TEXT,
-        final_result TEXT
-      );
-      CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-      CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id);
-
-      CREATE TABLE IF NOT EXISTS plans (
-        id TEXT PRIMARY KEY,
-        job_id TEXT NOT NULL,
-        data TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(job_id) REFERENCES jobs(id)
-      );
-
-      CREATE TABLE IF NOT EXISTS receipts (
-        id TEXT PRIMARY KEY,
-        job_id TEXT NOT NULL,
-        step_id TEXT NOT NULL,
-        tool TEXT NOT NULL,
-        capability TEXT NOT NULL,
-        input TEXT NOT NULL,
-        risk TEXT NOT NULL,
-        approval TEXT NOT NULL DEFAULT 'not_required',
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(job_id) REFERENCES jobs(id)
-      );
-      CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
-
-      CREATE TABLE IF NOT EXISTS results (
-        id TEXT PRIMARY KEY,
-        receipt_id TEXT NOT NULL,
-        job_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        output TEXT,
-        error TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(job_id) REFERENCES jobs(id)
-      );
-
-      CREATE TABLE IF NOT EXISTS approvals (
-        id TEXT PRIMARY KEY,
-        job_id TEXT NOT NULL,
-        receipt_id TEXT,
-        kind TEXT NOT NULL DEFAULT 'plan',
-        decision TEXT,
-        decided_at TEXT,
-        created_at TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
     `);
+    await this.ensureColumn('schema_migrations', 'description', 'TEXT');
 
-    await this.ensureColumn('jobs', 'final_result', 'TEXT');
-    await this.recordSchemaVersion(CURRENT_SCHEMA_VERSION);
+    // Snapshot before mutating the schema of an existing database, so an
+    // upgrade always has a restore point even if a forward migration fails.
+    const before = await getAppliedVersion(this.client);
+    if (before > 0 && before < LATEST_SCHEMA_VERSION) {
+      await this.snapshotDatabase(`pre-upgrade-v${before}`);
+    }
+
+    await migrateToLatest(this.client);
   }
 
   async getSchemaVersion(): Promise<number> {
-    const rs = await this.client.execute('SELECT MAX(version) AS version FROM schema_migrations');
-    const version = rs.rows[0]?.['version'];
-    return typeof version === 'number' ? version : 0;
+    return getAppliedVersion(this.client);
+  }
+
+  /** Report the applied schema version, the latest known, and any pending versions. */
+  async schemaStatus(): Promise<SchemaStatus> {
+    const current = await getAppliedVersion(this.client);
+    return {
+      current,
+      latest: LATEST_SCHEMA_VERSION,
+      pending: MIGRATIONS.filter((m) => m.version > current).map((m) => m.version),
+    };
+  }
+
+  /**
+   * Roll the control-plane schema back to `targetVersion`, running each
+   * migration's reverse step newest-first. A pre-rollback snapshot of the
+   * database is taken automatically (unless disabled) so the operation itself
+   * is recoverable. Returns the reverted steps.
+   */
+  async rollbackSchema(
+    targetVersion: number,
+    options: { backup?: boolean } = {},
+  ): Promise<MigrationStep[]> {
+    if (options.backup !== false) {
+      const current = await getAppliedVersion(this.client);
+      await this.snapshotDatabase(`pre-rollback-v${current}-to-v${targetVersion}`);
+    }
+    return rollbackToVersion(this.client, targetVersion);
+  }
+
+  /**
+   * Take a consistent SQLite snapshot of the live database using `VACUUM INTO`
+   * (never a torn raw copy) under a `migration-backups/` sibling directory.
+   * Returns the absolute path of the snapshot.
+   */
+  async snapshotDatabase(label: string): Promise<string> {
+    const backupDir = join(dirname(this.dbPath), 'migration-backups');
+    await mkdir(backupDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const safeLabel = label.replace(/[^a-zA-Z0-9_-]/g, '-');
+    const snapshotPath = join(backupDir, `helmr-${safeLabel}-${stamp}.db`);
+    await this.client.execute(`VACUUM INTO ${sqliteStringLiteral(snapshotPath)}`);
+    return snapshotPath;
   }
 
   private async ensureColumn(table: string, column: string, definition: string): Promise<void> {
@@ -211,13 +211,6 @@ export class HelmrSQLiteStore {
 
   close(): void {
     this.client.close();
-  }
-
-  private async recordSchemaVersion(version: number): Promise<void> {
-    await this.client.execute({
-      sql: 'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      args: [version, new Date().toISOString()],
-    });
   }
 
   async upsertJob(job: HelmrStoreJob): Promise<void> {
@@ -462,6 +455,10 @@ export class HelmrSQLiteStore {
              result.error ?? null, result.createdAt],
     });
   }
+}
+
+function sqliteStringLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function rowToJob(row: JobRow): HelmrStoreJob {

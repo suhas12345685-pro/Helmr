@@ -5,6 +5,7 @@ import { runSelfTest, printSelfTestResults } from './self-test.js';
 import { startDaemon, stopDaemon, daemonStatus } from './daemon.js';
 import { getHelmrPaths } from './paths.js';
 import { loadPersistedSecrets } from './secrets.js';
+import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import { formatServiceInstallPlan, installHelmrService, type ServiceInstallTarget } from './service-install.js';
 
 const args = process.argv.slice(2);
@@ -24,6 +25,8 @@ Usage:
   helmr start hatchery        Start the Hatchery dashboard and UI
   helmr start all             Start Gateway and Hatchery daemons
   helmr stop                  Stop all background daemons
+  helmr migrate status        Show the control-plane schema version
+  helmr migrate rollback <v>  Roll the schema back to version <v> (auto-snapshot first)
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -38,6 +41,8 @@ Examples:
   helmr start gateway
   helmr start hatchery
   helmr stop
+  helmr migrate status
+  helmr migrate rollback 1
   helmr channels add --channel slack-support --method Slack
   helmr install-service --wsl2 --dry-run
   helmr install-service --windows --dry-run
@@ -185,6 +190,49 @@ Created: ${new Date().toISOString()}
       console.error(`Unknown channels subcommand: ${subCommand}`);
       console.log('Usage: helmr channels add --channel <name> --method <method>');
       process.exit(1);
+    }
+  }
+
+  if (command === 'migrate') {
+    const { join } = await import('node:path');
+    const store = new HelmrSQLiteStore(join(getHelmrPaths().dataDir, 'helmr.db'));
+    await store.init();
+    try {
+      if (!subCommand || subCommand === 'status') {
+        const status = await store.schemaStatus();
+        console.log(`Schema version: ${status.current} (latest ${status.latest})`);
+        console.log(
+          status.pending.length
+            ? `Pending migrations: ${status.pending.join(', ')}`
+            : 'Up to date.',
+        );
+        process.exit(0);
+      }
+
+      if (subCommand === 'rollback') {
+        const target = Number(args[2]);
+        if (!Number.isInteger(target) || target < 0) {
+          console.error('Usage: helmr migrate rollback <targetVersion>');
+          process.exit(1);
+        }
+        console.log(`Rolling back schema to version ${target} (snapshot taken first)...`);
+        const reverted = await store.rollbackSchema(target);
+        if (reverted.length === 0) {
+          console.log(`Already at or below version ${target}; nothing to revert.`);
+        } else {
+          for (const step of reverted) {
+            console.log(`  reverted v${step.version} — ${step.description}`);
+          }
+          console.log(`Now at schema version ${await store.getSchemaVersion()}.`);
+        }
+        process.exit(0);
+      }
+
+      console.error(`Unknown migrate subcommand: ${subCommand}`);
+      console.error('Usage: helmr migrate [status|rollback <targetVersion>]');
+      process.exit(1);
+    } finally {
+      store.close();
     }
   }
 

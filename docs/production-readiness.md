@@ -44,7 +44,8 @@ HELMR_MODEL=<provider/model selected during onboarding>
 - Workspace locks release one acquired lock at a time.
 - Daemon PID records preserve ports and support status/stop for combined Gateway and Hatchery runs.
 - Runtime, Gateway, Hatchery, receipt tools, CLI admin commands, and self-test use the same `HELMR_DATA_DIR` and `HELMR_CONFIG_DIR` resolver.
-- SQLite initialization records the current schema version in `schema_migrations`.
+- SQLite initialization applies versioned, reversible migrations and records each applied version in `schema_migrations`.
+- Schema upgrades and rollbacks take an automatic SQLite snapshot first, and rollbacks are available via `helmr migrate rollback <version>`.
 - Online SQLite backups use SQLite snapshot semantics rather than raw live-file copies.
 - Backup/restore automation preserves the control-plane database, hash-chained audit evidence, and config files.
 - JSONL audit logs are hash-chained per job and can be verified for tampering.
@@ -84,16 +85,22 @@ npm run verify:production
   `secrets.json` under the config directory with owner-only (0600) permissions; keys are
   restored into the environment at daemon/Hatchery/CLI startup, with environment-injected
   secrets taking precedence. An encrypted-at-rest / OS-keyring backend remains a future option.)
-- Add rollback/backup guidance for future database migrations. (Backup/restore + pre-upgrade
-  backup guidance added in `docs/deployment.md`; an automated forward-version rollback path is
-  still open.)
+- Add rollback/backup guidance for future database migrations. (Done: reversible, versioned
+  migrations live in `packages/memory/src/migrations.ts` with a runner that applies forward
+  migrations and an automated `rollbackSchema` down-path. The store takes an automatic
+  `VACUUM INTO` snapshot under `migration-backups/` before any upgrade or rollback, legacy
+  single-version databases are backfilled so intermediate rollbacks work, and
+  `helmr migrate status` / `helmr migrate rollback <version>` expose it operationally.)
 - Add deployment packaging for Docker, systemd, and Windows service installation. (Done:
   `Dockerfile`, `docker-compose.yml`, `deploy/helmr.service`, and Windows/NSSM guidance in
   `docs/deployment.md`.)
 - Add end-to-end tests that run a full approved job through Gateway, Hatchery approval, runtime
-  execution, and audit review. (Partially done: `src/e2e-job.test.ts` runs the full intake →
-  plan → policy → execute → audit-verify lifecycle and asserts tamper detection. An HTTP-level
-  test through Gateway intake and Hatchery approval is still open.)
+  execution, and audit review. (Done: `src/e2e-job.test.ts` runs the full intake → plan →
+  policy → execute → audit-verify lifecycle in-process and asserts tamper detection, and
+  `src/http-e2e-job.test.ts` drives the same control plane over HTTP — Gateway `POST /api/events`
+  intake, a read-only job to a verifiable result, and an approval-gated plan that pauses, is
+  approved/denied through Hatchery's HTTP `/api/approvals` endpoints, and re-queues or fails
+  accordingly — verifying the audit hash-chain throughout.)
 - Add backup/restore tests for SQLite state and JSONL audit evidence. (Done:
   `packages/memory/src/backup.test.ts` snapshots and restores SQLite control-plane rows,
   hash-chained audit evidence, and config files.)
