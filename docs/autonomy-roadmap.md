@@ -128,11 +128,32 @@ model (which removes most in-process sandboxing) and the full-autonomy target.
 
 ### Phase 0 — Fix what is actually broken (prerequisite)
 1. Wire `browser_automation` into the gated executor
-   (`packages/hands/src/executor.ts` currently throws `unknown tool`).
+   (`packages/hands/src/executor.ts` currently throws `unknown tool`). Browser
+   actions flow through receipts + audit + the outward-action gate (3.2).
+   **Use WebMCP here** (see below) as the primary action surface, with the
+   Playwright driver as the fallback for non-WebMCP sites.
 2. Key-gated live-LLM CI job exercising the real
    `councilAgent/researchAgent/codingAgent.generate()` path (today every test
    forces the offline fallback, so the brain has zero coverage).
 3. HTTP-level e2e through Gateway intake -> Hatchery -> runtime -> audit.
+
+**WebMCP (Web Model Context Protocol).** A W3C browser-native standard
+(`navigator.modelContext`) that lets agent-ready sites expose structured,
+callable tools (`registerTool({ name, description, inputSchema, execute })`)
+returning JSON, instead of the agent screenshotting and guessing clicks.
+Helmr adopts it as follows:
+
+- On a page, discover WebMCP tools and represent each as a typed Helmr receipt
+  (tool name + JSON args), not an opaque click. This makes browser actions
+  **inspectable and policy-able** by the outward-action gate (3.2) and fully
+  auditable.
+- Helmr governs execution with its **own** receipt/gate/budget pipeline rather
+  than relying on the browser's native consent prompt — full autonomy inside the
+  box, enforced gates only on outward/mutating tool calls.
+- Playwright (`packages/embodiment/src/playwright-driver.ts`) remains the
+  perception + action fallback for sites that do not expose WebMCP.
+- Reference: W3C WebMCP spec (`webmachinelearning.github.io/webmcp`) and the
+  `@mcp-b/webmcp-ts-sdk` community SDK.
 
 ### Phase 1 — The four edge boundaries (critical for autonomy)
 1. Budgets & circuit breakers (3.1).
