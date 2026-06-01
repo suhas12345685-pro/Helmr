@@ -1,4 +1,4 @@
-import type { HelmrPlan } from '../packages/shared/src/index.js';
+import type { HelmrPlan, PlanStep } from '../packages/shared/src/index.js';
 
 export interface LocalPlanOptions {
   jobId: string;
@@ -24,6 +24,9 @@ const MODEL_ENV_KEYS = [
   'PERPLEXITY_API_KEY',
 ];
 
+const FILE_REFERENCE_PATTERN = /(?:^|[\s`"'(:])((?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9][A-Za-z0-9._-]*)(?=$|[\s`"'),.:;!?])/g;
+const UNSAFE_FILE_SEGMENT_PATTERN = /(^|\/)\.\.($|\/)/;
+
 export function shouldUseLocalAgentFallback(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
@@ -32,40 +35,71 @@ export function shouldUseLocalAgentFallback(
 
 export function createLocalPlan(options: LocalPlanOptions): HelmrPlan {
   const request = options.request.toLowerCase();
-  const wantsGit = request.includes('git') || request.includes('development steps') || request.includes('status');
+  const requestedFiles = extractRequestedFiles(options.request);
+  const steps: PlanStep[] = [];
+
+  const addStep = (step: Omit<PlanStep, 'canRunInParallelWith'> & { canRunInParallelWith?: string[] }): void => {
+    if (steps.some((existing) => existing.id === step.id)) {
+      return;
+    }
+    steps.push({ ...step, canRunInParallelWith: step.canRunInParallelWith ?? [] });
+  };
+
+  addStep({
+    id: 'inspect_workspace',
+    title: 'Inspect workspace tree',
+    kind: 'read',
+    agent: 'none',
+    requiredCapabilities: ['workspace_read'],
+  });
+
+  const filesToRead = new Set<string>();
+  if (requestedFiles.length === 0 || wantsPackageMetadata(request)) {
+    filesToRead.add('package.json');
+  }
+  for (const file of requestedFiles) {
+    filesToRead.add(file);
+  }
+
+  for (const file of filesToRead) {
+    addStep({
+      id: stepIdForFile(file),
+      title: `Read file ${file}`,
+      kind: 'read',
+      agent: 'none',
+      requiredCapabilities: ['workspace_read'],
+    });
+  }
+
+  if (wantsGitStatus(request)) {
+    addStep({
+      id: 'git_status',
+      title: request.includes('git') || request.includes('status') ? 'Read git status' : 'Read git status if available',
+      kind: 'command',
+      agent: 'none',
+      requiredCapabilities: ['git_read'],
+    });
+  }
+
+  if (wantsGitLog(request)) {
+    addStep({
+      id: 'git_log',
+      title: 'Read git log',
+      kind: 'command',
+      agent: 'none',
+      requiredCapabilities: ['git_read'],
+    });
+  }
+
+  connectParallelReadSteps(steps);
 
   return {
     id: `plan_${options.jobId}`,
     jobId: options.jobId,
-    summary: 'Inspect the workspace locally, read package metadata, and summarize next development steps.',
+    summary: summarizeDynamicPlan(options.request, steps),
     risk: 'low',
     requiresApproval: false,
-    steps: [
-      {
-        id: 'inspect_workspace',
-        title: 'Inspect workspace tree',
-        kind: 'read',
-        agent: 'none',
-        canRunInParallelWith: ['read_package'],
-        requiredCapabilities: ['workspace_read'],
-      },
-      {
-        id: 'read_package',
-        title: 'Read file package.json',
-        kind: 'read',
-        agent: 'none',
-        canRunInParallelWith: ['inspect_workspace'],
-        requiredCapabilities: ['workspace_read'],
-      },
-      {
-        id: 'git_status',
-        title: wantsGit ? 'Read git status' : 'Read git status if available',
-        kind: 'command',
-        agent: 'none',
-        canRunInParallelWith: [],
-        requiredCapabilities: ['git_read'],
-      },
-    ],
+    steps,
   };
 }
 
@@ -88,6 +122,8 @@ export function synthesizeLocalAnswer(options: LocalSynthesisOptions): string {
   const workspace = getWorkspaceSummary(options.stepOutputs['inspect_workspace']);
   const packageInfo = getPackageInfo(options.stepOutputs['read_package']);
   const gitStatus = stringifyOutput(options.stepOutputs['git_status']);
+  const gitLog = stringifyOutput(options.stepOutputs['git_log']);
+  const dynamicFiles = getDynamicFileOutputs(options.stepOutputs);
   const notableFiles = workspace.files.slice(0, 12);
   const packageName = packageInfo.name ?? 'this workspace';
   const scripts = Object.keys(packageInfo.scripts ?? {});
@@ -104,9 +140,11 @@ export function synthesizeLocalAnswer(options: LocalSynthesisOptions): string {
     '',
     `- Files inspected: ${workspace.files.length}`,
     `- Notable files: ${notableFiles.length ? notableFiles.join(', ') : 'no files found by the read tool'}`,
+    `- Requested files read: ${dynamicFiles.length ? dynamicFiles.join(', ') : 'none beyond default workspace metadata'}`,
     `- Available scripts: ${scripts.length ? scripts.join(', ') : 'none listed in package.json'}`,
     `- Key dependencies: ${dependencies.slice(0, 8).join(', ') || 'none listed in package.json'}`,
     `- Git status: ${summarizeGitStatus(gitStatus)}`,
+    gitLog ? `- Recent git history: ${summarizeGitLog(gitLog)}` : undefined,
     '',
     '## Next Development Steps',
     '',
@@ -114,7 +152,67 @@ export function synthesizeLocalAnswer(options: LocalSynthesisOptions): string {
     '- Expand Hatchery visibility around the same SQLite records the CLI writes.',
     '- Add approval-resume coverage for write-capable plans before enabling broad coding-agent execution.',
     '- Continue tightening security tests around workspace boundaries, command allowlists, and secret redaction.',
-  ].join('\n');
+  ].filter((line): line is string => line !== undefined).join('\n');
+}
+
+export function extractRequestedFiles(request: string): string[] {
+  const files = new Set<string>();
+
+  for (const match of request.matchAll(FILE_REFERENCE_PATTERN)) {
+    const filePath = normalizeRequestedFile(match[1] ?? '');
+    if (filePath) {
+      files.add(filePath);
+    }
+  }
+
+  return [...files].sort();
+}
+
+function normalizeRequestedFile(filePath: string): string | undefined {
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (
+    !normalized ||
+    normalized.startsWith('/') ||
+    UNSAFE_FILE_SEGMENT_PATTERN.test(normalized) ||
+    normalized.includes('\0')
+  ) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function wantsPackageMetadata(request: string): boolean {
+  return /\b(package|dependencies|scripts)\b/.test(request);
+}
+
+function wantsGitStatus(request: string): boolean {
+  return request.includes('git') || request.includes('development steps') || request.includes('status') || request.includes('changes');
+}
+
+function wantsGitLog(request: string): boolean {
+  return request.includes('git log') || request.includes('history') || request.includes('recent commits') || request.includes('commit history');
+}
+
+function stepIdForFile(filePath: string): string {
+  if (filePath === 'package.json') {
+    return 'read_package';
+  }
+  return `read_file_${filePath.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'requested'}`;
+}
+
+function connectParallelReadSteps(steps: PlanStep[]): void {
+  const readStepIds = steps.filter((step) => step.kind === 'read').map((step) => step.id);
+  for (const step of steps) {
+    if (step.kind === 'read') {
+      step.canRunInParallelWith = readStepIds.filter((id) => id !== step.id);
+    }
+  }
+}
+
+function summarizeDynamicPlan(request: string, steps: PlanStep[]): string {
+  const readCount = steps.filter((step) => step.kind === 'read').length;
+  const commandCount = steps.filter((step) => step.kind === 'command').length;
+  return `Dynamically inspect ${readCount} workspace target${readCount === 1 ? '' : 's'}${commandCount ? ` and run ${commandCount} read-only command${commandCount === 1 ? '' : 's'}` : ''} for: ${request.slice(0, 120)}`;
 }
 
 function getWorkspaceSummary(value: unknown): { root?: string; files: string[] } {
@@ -152,6 +250,12 @@ function getPackageInfo(value: unknown): {
     scripts: isStringRecord(pkg.scripts) ? pkg.scripts : undefined,
     dependencies: isStringRecord(pkg.dependencies) ? pkg.dependencies : undefined,
   };
+}
+
+function getDynamicFileOutputs(stepOutputs: Record<string, unknown>): string[] {
+  return Object.keys(stepOutputs)
+    .filter((stepId) => stepId.startsWith('read_file_'))
+    .sort();
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -193,4 +297,8 @@ function summarizeGitStatus(status: string): string {
     return 'clean';
   }
   return status.split('\n').slice(0, 3).join(' ');
+}
+
+function summarizeGitLog(log: string): string {
+  return log.split('\n').filter(Boolean).slice(0, 3).join(' ');
 }
