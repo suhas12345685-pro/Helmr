@@ -15,6 +15,7 @@ export { planningWorkflow, executionWorkflow, intakeWorkflow, reviewWorkflow, de
 export { readWorkspaceTool, readWorkspaceFileTool } from './tools/read-workspace.tool.js';
 export { shellReadTool, gitStatusTool, gitLogTool } from './tools/shell-read.tool.js';
 export { requestReceiptTool } from './tools/request-receipt.tool.js';
+export { listSkillsTool } from './tools/skills.tool.js';
 export { createHelmrMemory, createInMemoryHelmrMemory } from './memory/mastra-memory.js';
 export {
   HELMR_LOOP,

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { evaluateToolReceipt } from '../../cortex/src/policy.js';
+import { SkillRegistry, parseSkillManifest, SKILLS_DIR_NAME } from '../../skills/src/index.js';
 import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
 import {
   writeWorkspaceFile,
@@ -74,6 +76,18 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
         dev: input['dev'] === true,
         exact: input['exact'] === true,
       });
+
+    case 'list_skills':
+      return new SkillRegistry(join(workspacePath, SKILLS_DIR_NAME)).list();
+
+    case 'create_skill': {
+      // Self-extension: persist a new/updated skill manifest. The file lands
+      // inside the workspace under the one-writer lock, and is auto-discovered
+      // on the next list — no restart or code change required.
+      const registry = new SkillRegistry(join(workspacePath, SKILLS_DIR_NAME));
+      const manifest = parseSkillManifest(input);
+      return registry.write(manifest);
+    }
 
     default:
       throw new Error(`unknown tool: ${receipt.tool}`);

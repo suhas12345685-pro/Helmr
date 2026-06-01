@@ -881,6 +881,34 @@ Dangerous operations require approval:
 
 ---
 
+## 13a. Self-Extension (chat-driven skills and plugins)
+
+Helmr can extend itself. A user can simply text Helmr — "teach yourself to summarize my open PRs" — and Helmr will create a new skill, wire it in, and use it, all without a manual code change. This is how the doctrine's *Adapt* stage becomes real.
+
+Crucially, self-extension rides on the existing safety core rather than bypassing it:
+
+- A **skill** is a declarative manifest (`packages/skills`): `{ id, name, description, kind, triggers, instructions, source, enabled, version }`, validated by a Zod schema and stored as `<id>.skill.json` under `<workspace>/.helmr/skills/`.
+- The `SkillRegistry` re-scans that directory on every read, so a newly written skill is **auto-discovered** — "auto-wired" with no restart and no edit to Helmr's own source. Malformed skill files are skipped, never fatal.
+- Two capabilities back this: `skill_read` (ungated, used by the `list_skills` tool so agents can sense what already exists) and `skill_write` (**approval-gated**, like every other write).
+
+The chat-to-skill flow:
+
+```txt
+chat message
+  -> HelmrEvent (source: "chat")
+  -> job + plan (Council)
+  -> coding agent requests a receipt: tool "create_skill", capability "skill_write"
+  -> Cortex gates it -> approval (trust-calibrated: owner can pre-approve, lower trust must confirm)
+  -> Hands executes the approved receipt -> SkillRegistry.write() persists the manifest
+  -> next list_skills auto-discovers it -> the skill is live
+```
+
+Because `skill_write` is in the approval-gated set, Helmr never silently rewrites its own behavior: changing code or adding a skill produces a receipt and (by default) waits for human approval, inside the one-writer workspace lock. The autonomy dial is the principal's **trust level** — an `owner` can grant standing approval for low-risk skill writes, while limited/untrusted principals always require an explicit confirmation. Same momentum, same brakes.
+
+Implemented today: the skill manifest + registry + auto-discovery, the `skill_read`/`skill_write` capabilities, the `list_skills` tool, and the `create_skill` execution path in Hands (gated through Cortex + approvals). Pending: live in-process hot-reload of long-running agents (currently a skill is picked up on the next listing rather than pushed to an already-running agent loop), and a Hatchery surface for browsing/enabling/disabling skills.
+
+---
+
 ## 14. Hatchery
 
 Hatchery is the human control room.

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { z } from 'zod';
 
-import { CapabilitySchema, type ToolReceipt } from '../../../shared/src/index.js';
+import { CapabilitySchema, isApprovalGatedCapability, type ToolReceipt } from '../../../shared/src/index.js';
 import { HelmrSQLiteStore } from '../../../memory/src/sqlite-store.js';
 import { getHelmrPaths } from '../../../../src/paths.js';
 
@@ -29,13 +29,7 @@ export const requestReceiptTool = createTool({
     }
     const workspacePath = job.workspacePath ?? process.cwd();
 
-    const isGated =
-      input.capability === 'workspace_write' ||
-      input.capability === 'shell_write' ||
-      input.capability === 'git_write' ||
-      input.capability === 'package_install' ||
-      input.capability === 'service_install' ||
-      input.capability === 'secrets_read';
+    const isGated = isApprovalGatedCapability(input.capability);
 
     if (!isGated) {
       const receipt: ToolReceipt = {

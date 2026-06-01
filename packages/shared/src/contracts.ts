@@ -12,6 +12,8 @@ export const CapabilitySchema = z.enum([
   'package_install',
   'service_install',
   'secrets_read',
+  'skill_read',
+  'skill_write',
 ]);
 
 export type Capability = z.infer<typeof CapabilitySchema>;
@@ -126,6 +128,9 @@ const APPROVAL_GATED_CAPABILITIES = new Set<Capability>([
   'package_install',
   'service_install',
   'secrets_read',
+  // Self-extension: writing a new skill/plugin or changing Helmr's own behavior
+  // is a gated write — it must pass through human approval (trust-calibrated).
+  'skill_write',
 ]);
 
 export function isApprovalGatedCapability(capability: Capability): boolean {
