@@ -15,7 +15,25 @@ export { planningWorkflow, executionWorkflow, intakeWorkflow, reviewWorkflow, de
 export { readWorkspaceTool, readWorkspaceFileTool } from './tools/read-workspace.tool.js';
 export { shellReadTool, gitStatusTool, gitLogTool } from './tools/shell-read.tool.js';
 export { requestReceiptTool } from './tools/request-receipt.tool.js';
+export { listSkillsTool } from './tools/skills.tool.js';
+export {
+  createMastraDecider,
+  buildDecisionPrompt,
+  AgentActionSchema,
+  type DecidingAgent,
+  type MastraDeciderOptions,
+} from './embodiment/agent-decider.js';
 export { createHelmrMemory, createInMemoryHelmrMemory } from './memory/mastra-memory.js';
+export {
+  HELMR_LOOP,
+  HELMR_DOCTRINE_PILLARS,
+  HELMR_KILLER_LINE,
+  HELMR_DOCTRINE_PREAMBLE,
+  HELMR_PERSONA,
+  HELMR_PERSONA_PROMPT,
+  withDoctrine,
+} from './doctrine.js';
+export type { HelmrLoopStage } from './doctrine.js';
 export type { HelmrPlan, HelmrEvent, HelmrJob, ToolReceipt, ToolResult, Capability } from '../../shared/src/index.js';
 
 export const mastra = new Mastra({

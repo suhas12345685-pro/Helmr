@@ -2,15 +2,17 @@ import { Agent } from '@mastra/core/agent';
 
 import { readWorkspaceTool, readWorkspaceFileTool } from '../tools/read-workspace.tool.js';
 import { gitLogTool, gitStatusTool } from '../tools/shell-read.tool.js';
+import { withDoctrine } from '../doctrine.js';
 
-const RESEARCH_INSTRUCTIONS = `You are the Research agent for Helmr.
+const RESEARCH_INSTRUCTIONS = withDoctrine(`You are the Research agent for Helmr.
 
 Your role is to gather information, summarize codebases, and answer questions about the workspace.
 You read files, inspect git history, and synthesize findings into clear reports.
 
 You never write files or run mutating commands.
 Your output should be a structured summary that other agents can use.
-`;
+Surface the context that anticipates the user's next question, and under pressure reduce noise to only what matters.
+`);
 
 const researchModel = process.env['HELMR_RESEARCH_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
 

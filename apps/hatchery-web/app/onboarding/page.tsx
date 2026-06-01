@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { configureProvider, runSelfTest, API_BASE } from '@/lib/api';
+import { configureProvider, runSelfTest, saveConfigFile, API_BASE } from '@/lib/api';
 
 type CheckStatus = 'pending' | 'pass' | 'fail' | 'checking';
 
@@ -13,7 +13,90 @@ interface Check {
   detail?: string;
 }
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
+
+type TasteKey = 'anticipator' | 'companion' | 'operator' | 'custom';
+
+interface Taste {
+  label: string;
+  tagline: string;
+  personality: string;
+  style: string[];
+}
+
+// Helmr's possible "souls". Each one is a different taste the user can choose
+// during onboarding; it is persisted to the editable IDENTITY.md config file.
+const TASTES: Record<TasteKey, Taste> = {
+  anticipator: {
+    label: 'Anticipator',
+    tagline: 'The default Helmr — calm, momentum-aware, dry warmth.',
+    personality: `Anticipatory, not reactive: I lead with the next move instead of waiting to be asked. Calm under pressure — the more chaotic the moment, the quieter and clearer I get. Confident with dry warmth, never servile and never a hype machine. I earn trust by being honest about what I do not know and never reckless with a write.`,
+    style: [
+      'Open with the move I am already preparing, not "How can I help?"',
+      'Short status updates during execution',
+      'Surface only what matters, especially under pressure',
+      'Risk and approval status always visible before any write',
+      'Occasional, tasteful crustacean nods (molt, current) — used sparingly',
+    ],
+  },
+  companion: {
+    label: 'Companion',
+    tagline: 'A warm, encouraging right hand that thinks out loud with you.',
+    personality: `Warm, proactive, and encouraging. I think out loud with you, celebrate progress, and gently flag risks before they bite. I anticipate the next step and offer it, but I keep you in the driver's seat and never pretend to know more than I do.`,
+    style: [
+      'Friendly, conversational tone with brief reasoning',
+      'Offer the next suggested step proactively',
+      'Encourage and acknowledge progress',
+      'Always make risk and approval status clear before any write',
+    ],
+  },
+  operator: {
+    label: 'Operator',
+    tagline: 'Terse, no-nonsense, pure signal. Minimum words, maximum momentum.',
+    personality: `Terse and no-nonsense. I speak in the fewest words that carry the signal, lead with the action or result, and skip pleasantries entirely. I anticipate the next move and state it flatly. I never write without showing risk and getting approval.`,
+    style: [
+      'Lead with the action or result, no preamble',
+      'Bullet points and short lines over prose',
+      'No flattery, no filler',
+      'Risk and approval status stated plainly before any write',
+    ],
+  },
+  custom: {
+    label: 'Custom',
+    tagline: 'Describe my taste in your own words.',
+    personality: '',
+    style: [
+      'Short status updates during execution',
+      'Clear summary at completion',
+      'Risk and approval status always visible before any write',
+    ],
+  },
+};
+
+function buildIdentity(name: string, tasteKey: TasteKey, custom: string): string {
+  const taste = TASTES[tasteKey];
+  const personality =
+    tasteKey === 'custom' && custom.trim() ? custom.trim() : taste.personality;
+  return `# Helmr Identity
+
+## Name
+${name.trim() || 'Helmr'}
+
+## Mascot
+A lobster at the helm — calm under pressure, always reading the current before it turns.
+
+## Personality
+${personality}
+
+Helmr does not wait for instructions. Helmr understands momentum.
+
+## Language
+English
+
+## Response Style
+${taste.style.map((s) => `- ${s}`).join('\n')}
+`;
+}
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -32,7 +115,7 @@ function StepIndicator({ current }: { current: number }) {
             {i + 1 < current ? '✓' : i + 1}
           </div>
           {i < TOTAL_STEPS - 1 && (
-            <div className={`h-0.5 w-8 ${i + 1 < current ? 'bg-green-600' : 'bg-gray-700'}`} />
+            <div className={`h-0.5 w-6 ${i + 1 < current ? 'bg-green-600' : 'bg-gray-700'}`} />
           )}
         </div>
       ))}
@@ -74,6 +157,12 @@ export default function OnboardingPage() {
   const [savingProvider, setSavingProvider] = useState(false);
   const [providerSaved, setProviderSaved] = useState(false);
   const [providerError, setProviderError] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState('Helmr');
+  const [taste, setTaste] = useState<TasteKey>('anticipator');
+  const [customTaste, setCustomTaste] = useState('');
+  const [savingSoul, setSavingSoul] = useState(false);
+  const [soulSaved, setSoulSaved] = useState(false);
+  const [soulError, setSoulError] = useState<string | null>(null);
   const [selfTestResults, setSelfTestResults] = useState<Record<string, unknown> | null>(null);
   const [selfTestRunning, setSelfTestRunning] = useState(false);
 
@@ -118,6 +207,28 @@ export default function OnboardingPage() {
     } finally {
       setSavingProvider(false);
     }
+  }
+
+  async function handleSaveSoul(): Promise<boolean> {
+    setSavingSoul(true);
+    setSoulError(null);
+    try {
+      await saveConfigFile('IDENTITY.md', buildIdentity(agentName, taste, customTaste));
+      setSoulSaved(true);
+      return true;
+    } catch (err) {
+      setSoulError(err instanceof Error ? err.message : 'Failed to save');
+      return false;
+    } finally {
+      setSavingSoul(false);
+    }
+  }
+
+  async function handleSoulContinue() {
+    // Helmr always commits a soul before sailing on — save the current choice
+    // if the user has not already done so.
+    const ok = soulSaved || (await handleSaveSoul());
+    if (ok) setStep(5);
   }
 
   async function handleRunSelfTest() {
@@ -228,6 +339,78 @@ export default function OnboardingPage() {
 
         {step === 4 && (
           <div>
+            <h2 className="text-lg font-semibold text-gray-100 mb-2">Helmr's Soul</h2>
+            <div className="bg-indigo-950/40 border border-indigo-800/60 rounded-lg p-4 mb-5">
+              <p className="text-sm text-indigo-100 leading-relaxed">
+                <span className="mr-1">🦞</span>
+                Before we set sail — <span className="font-semibold">what's my taste?</span> This is my soul:
+                how I carry myself when I work for you. Pick one, or describe it in your own words.
+                You can change this anytime in Settings.
+              </p>
+            </div>
+
+            <label className="block text-xs font-medium text-gray-400 mb-1">What should you call me?</label>
+            <input
+              type="text"
+              value={agentName}
+              onChange={(e) => { setAgentName(e.target.value); setSoulSaved(false); }}
+              placeholder="Helmr"
+              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2.5 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 mb-4"
+            />
+
+            <label className="block text-xs font-medium text-gray-400 mb-2">My taste</label>
+            <div className="space-y-2">
+              {(Object.keys(TASTES) as TasteKey[]).map((key) => {
+                const t = TASTES[key];
+                const active = taste === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => { setTaste(key); setSoulSaved(false); }}
+                    className={`w-full text-left rounded-lg border px-4 py-3 transition-colors ${
+                      active
+                        ? 'border-indigo-500 bg-indigo-950/40'
+                        : 'border-gray-700 bg-gray-800 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-3 h-3 rounded-full ${active ? 'bg-indigo-400' : 'bg-gray-600'}`} />
+                      <span className="text-sm font-medium text-gray-100">{t.label}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1 ml-5">{t.tagline}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {taste === 'custom' && (
+              <textarea
+                value={customTaste}
+                onChange={(e) => { setCustomTaste(e.target.value); setSoulSaved(false); }}
+                rows={4}
+                placeholder="Describe how I should carry myself — tone, attitude, quirks..."
+                className="mt-3 w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-sm text-gray-100 focus:outline-none focus:border-indigo-500"
+              />
+            )}
+
+            {soulError && <p className="text-xs text-red-400 mt-3">{soulError}</p>}
+            {soulSaved && <p className="text-xs text-green-400 mt-3">Soul saved — this is who I'll be.</p>}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setStep(3)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
+              <button
+                onClick={handleSoulContinue}
+                disabled={savingSoul || (taste === 'custom' && !customTaste.trim())}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm"
+              >
+                {savingSoul ? 'Saving...' : 'Save & Continue'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div>
             <h2 className="text-lg font-semibold text-gray-100 mb-2">Channel Setup</h2>
             <p className="text-sm text-gray-400 mb-4">Optional — set up channels later in the Channels page.</p>
             <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 text-sm text-gray-400">
@@ -235,13 +418,13 @@ export default function OnboardingPage() {
               Configure Telegram, Discord, Slack, or WhatsApp from the Channels page after setup.
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setStep(3)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
-              <button onClick={() => setStep(5)} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Continue</button>
+              <button onClick={() => setStep(4)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
+              <button onClick={() => setStep(6)} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Continue</button>
             </div>
           </div>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <div>
             <h2 className="text-lg font-semibold text-gray-100 mb-4">Self-Test</h2>
             <p className="text-sm text-gray-400 mb-4">Verify everything is working correctly.</p>
@@ -266,20 +449,20 @@ export default function OnboardingPage() {
               </div>
             )}
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setStep(4)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
-              <button onClick={() => setStep(6)} disabled={!selfTestResults} className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Continue</button>
+              <button onClick={() => setStep(5)} className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Back</button>
+              <button onClick={() => setStep(7)} disabled={!selfTestResults} className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm">Continue</button>
             </div>
           </div>
         )}
 
-        {step === 6 && (
+        {step === 7 && (
           <div className="text-center">
             <div className="w-16 h-16 bg-green-700 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-white text-2xl">✓</span>
             </div>
             <h2 className="text-xl font-bold text-gray-100 mb-2">You're all set!</h2>
             <p className="text-gray-400 text-sm mb-8">
-              Helmr is configured and ready to orchestrate your agents.
+              {agentName.trim() || 'Helmr'} is configured and ready to orchestrate your agents.
             </p>
             <button
               onClick={() => router.push('/')}

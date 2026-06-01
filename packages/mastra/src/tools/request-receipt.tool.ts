@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { z } from 'zod';
 
-import { CapabilitySchema, type ToolReceipt } from '../../../shared/src/index.js';
+import { CapabilitySchema, isApprovalGatedCapability, type ToolReceipt } from '../../../shared/src/index.js';
+import { hasStandingApproval, getSkillAutonomy } from '../../../cortex/src/policy.js';
 import { HelmrSQLiteStore } from '../../../memory/src/sqlite-store.js';
 import { getHelmrPaths } from '../../../../src/paths.js';
 
@@ -29,13 +30,7 @@ export const requestReceiptTool = createTool({
     }
     const workspacePath = job.workspacePath ?? process.cwd();
 
-    const isGated =
-      input.capability === 'workspace_write' ||
-      input.capability === 'shell_write' ||
-      input.capability === 'git_write' ||
-      input.capability === 'package_install' ||
-      input.capability === 'service_install' ||
-      input.capability === 'secrets_read';
+    const isGated = isApprovalGatedCapability(input.capability);
 
     if (!isGated) {
       const receipt: ToolReceipt = {
@@ -88,6 +83,36 @@ export const requestReceiptTool = createTool({
       } else {
         throw new Error('Awaiting human approval');
       }
+    }
+
+    // Trust-calibrated autonomy: the owner has standing approval for low-risk
+    // self-extension, so a skill write runs immediately instead of pausing.
+    if (
+      hasStandingApproval(
+        { capability: input.capability, risk: input.risk },
+        { trustLevel: 'owner', autonomy: getSkillAutonomy() },
+      )
+    ) {
+      const receipt: ToolReceipt = {
+        id: `receipt_${randomUUID()}`,
+        jobId: input.jobId,
+        stepId: input.stepId,
+        tool: input.tool,
+        capability: input.capability,
+        input: input.input,
+        risk: input.risk,
+        approval: 'approved',
+        createdAt: new Date().toISOString(),
+      };
+      await store.saveReceipt(receipt);
+
+      const { executeReceipt } = await import('../../../hands/src/executor.js');
+      const result = await executeReceipt(receipt, workspacePath);
+      await store.saveResult(result);
+      if (result.status === 'failed') {
+        throw new Error(result.error ?? 'Execution failed');
+      }
+      return receipt;
     }
 
     const receipt: ToolReceipt = {

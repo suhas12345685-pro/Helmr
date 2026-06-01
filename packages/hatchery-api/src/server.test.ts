@@ -10,6 +10,7 @@ import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
 import { createHatcheryApp } from './server.js';
+import { MultiAgentRuntime, MockWorkspaceProvider } from '../../embodiment/src/index.js';
 
 test('hatchery keeps health public while token-protecting API routes', async () => {
   const previousToken = process.env['HELMR_API_TOKEN'];
@@ -151,6 +152,118 @@ test('configuring a provider persists the API key durably for restart', async ()
   } finally {
     if (previousKey === undefined) delete process.env['ANTHROPIC_API_KEY'];
     else process.env['ANTHROPIC_API_KEY'] = previousKey;
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('skills API creates, lists, toggles, and deletes self-taught skills', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-skills-api-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+    const headers = { 'content-type': 'application/json', 'x-forwarded-for': 'skills-api' };
+
+    // Empty to start.
+    const empty = await app.request('/api/skills', { headers });
+    assert.deepEqual(await empty.json(), { skills: [] });
+
+    // Create.
+    const created = await app.request('/api/skills', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'summarize-pr', name: 'Summarize PR', description: 'Summarize a PR' }),
+    });
+    assert.equal(created.status, 200);
+
+    // Listed.
+    const listed = await app.request('/api/skills', { headers });
+    const body = (await listed.json()) as { skills: Array<{ id: string; enabled: boolean }> };
+    assert.equal(body.skills.length, 1);
+    assert.equal(body.skills[0]?.enabled, true);
+
+    // Toggle off.
+    const toggled = await app.request('/api/skills/summarize-pr/enabled', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ enabled: false }),
+    });
+    assert.equal(toggled.status, 200);
+    const afterToggle = (await (await app.request('/api/skills', { headers })).json()) as {
+      skills: Array<{ enabled: boolean }>;
+    };
+    assert.equal(afterToggle.skills[0]?.enabled, false);
+
+    // Invalid manifest rejected.
+    const bad = await app.request('/api/skills', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'Bad Id', name: 'x', description: 'y' }),
+    });
+    assert.equal(bad.status, 400);
+
+    // Delete.
+    const removed = await app.request('/api/skills/summarize-pr', { method: 'DELETE', headers });
+    assert.equal(removed.status, 200);
+    const missing = await app.request('/api/skills/summarize-pr', { method: 'DELETE', headers });
+    assert.equal(missing.status, 404);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('agents API surfaces live embodied agents and the task ledger', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-agents-api-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+
+    const runtime = new MultiAgentRuntime(new MockWorkspaceProvider(), { mode: 'swarm' });
+    const research = await runtime.spawnAgent({ role: 'research' });
+    await runtime.spawnAgent({ role: 'verify' });
+    runtime.assignTask(research.agentId, { description: 'Research competitors' });
+
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir, runtime);
+    const headers = { 'x-forwarded-for': 'agents-api' };
+
+    const agentsRes = await app.request('/api/agents', { headers });
+    const agentsBody = (await agentsRes.json()) as { agents: Array<{ role: string; status: string; workspaceId: string }> };
+    assert.equal(agentsBody.agents.length, 2);
+    const roles = agentsBody.agents.map((a) => a.role).sort();
+    assert.deepEqual(roles, ['research', 'verify']);
+    // Distinct workspaces — no shared body.
+    assert.notEqual(agentsBody.agents[0]?.workspaceId, agentsBody.agents[1]?.workspaceId);
+
+    const tasksRes = await app.request('/api/tasks', { headers });
+    const tasksBody = (await tasksRes.json()) as { tasks: Array<{ description: string; assignedAgentId?: string }> };
+    assert.equal(tasksBody.tasks.length, 1);
+    assert.equal(tasksBody.tasks[0]?.description, 'Research competitors');
+    assert.equal(tasksBody.tasks[0]?.assignedAgentId, research.agentId);
+
+    await runtime.shutdown();
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test('agents API returns empty arrays when no runtime is attached', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-agents-empty-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+
+    const agentsRes = await app.request('/api/agents', { headers: { 'x-forwarded-for': 'agents-empty' } });
+    assert.deepEqual(await agentsRes.json(), { agents: [] });
+    const tasksRes = await app.request('/api/tasks', { headers: { 'x-forwarded-for': 'tasks-empty' } });
+    assert.deepEqual(await tasksRes.json(), { tasks: [] });
+  } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });

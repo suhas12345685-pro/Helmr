@@ -1,7 +1,57 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { evaluatePlan, evaluateToolReceipt } from './policy.js';
+import {
+  evaluatePlan,
+  evaluateToolReceipt,
+  hasStandingApproval,
+  getSkillAutonomy,
+} from './policy.js';
+
+test('autonomous owner self-extends without approval at any risk', () => {
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
+    true,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'high' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
+    true,
+  );
+});
+
+test('standing mode auto-approves only low-risk owner skill writes', () => {
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    true,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'high' }, { trustLevel: 'owner', autonomy: 'standing' }),
+    false,
+  );
+});
+
+test('standing approval is withheld for non-owners, manual mode, or non-skill writes', () => {
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'trusted', autonomy: 'autonomous' }),
+    false,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'skill_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'manual' }),
+    false,
+  );
+  assert.equal(
+    hasStandingApproval({ capability: 'workspace_write', risk: 'low' }, { trustLevel: 'owner', autonomy: 'autonomous' }),
+    false,
+  );
+});
+
+test('getSkillAutonomy defaults to autonomous and respects explicit dials', () => {
+  assert.equal(getSkillAutonomy({}), 'autonomous');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'whatever' }), 'autonomous');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'standing' }), 'standing');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'manual' }), 'manual');
+  assert.equal(getSkillAutonomy({ HELMR_SKILL_AUTONOMY: 'MANUAL' }), 'manual');
+});
 
 test('read-only plan is allowed without approval', () => {
   const decision = evaluatePlan({

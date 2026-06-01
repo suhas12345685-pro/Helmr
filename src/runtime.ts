@@ -20,6 +20,7 @@ import {
   synthesizeLocalAnswer,
 } from './local-agent.js';
 import { getHelmrPaths } from './paths.js';
+import { buildSoulContext } from './soul.js';
 
 export interface RunJobOptions {
   text: string;
@@ -152,7 +153,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
 
     if (requiresCodingAgent) {
       log('Plan requires coding agent execution. Prompting coding agent...');
-      const codingPrompt = `You are tasked with executing the following approved code implementation plan:
+      const codingPrompt = `${buildSoulContext()}You are tasked with executing the following approved code implementation plan:
 Plan Summary: ${plan.summary}
 Job ID: ${plan.jobId}
 Workspace Path: ${event.workspace.path}
@@ -231,7 +232,7 @@ async function runCouncilPlanner(jobId: string, workspacePath: string, text: str
     return createLocalPlan({ jobId, request: text });
   }
 
-  const prompt = `Plan this request for job ${jobId}.
+  const prompt = `${buildSoulContext()}Plan this request for job ${jobId}.
 Workspace: ${workspacePath}
 Request: ${text}
 
