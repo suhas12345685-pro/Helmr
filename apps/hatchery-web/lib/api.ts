@@ -256,3 +256,15 @@ export async function fetchSettings(): Promise<Record<string, unknown>> {
 export async function restartDaemon(): Promise<void> {
   await apiFetch<void>('/api/daemon/restart', { method: 'POST' });
 }
+
+export async function fetchConfigFile(file: string): Promise<string> {
+  const data = await apiFetch<unknown>(`/api/config/${file}`, { allowErrorStatus: true });
+  return isRecord(data) && typeof data['content'] === 'string' ? data['content'] : '';
+}
+
+export async function saveConfigFile(file: string, content: string): Promise<void> {
+  await apiFetch<void>(`/api/config/${file}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  });
+}
