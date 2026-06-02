@@ -13,7 +13,7 @@ import type {
   SwarmTaskStatus,
 } from '../../shared/src/index.js';
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export interface JobRow {
   id: string;
@@ -152,6 +152,13 @@ export class HelmrSQLiteStore {
         FOREIGN KEY(swarm_id) REFERENCES swarms(id)
       );
       CREATE INDEX IF NOT EXISTS idx_swarm_tasks_swarm ON swarm_tasks(swarm_id);
+
+      CREATE TABLE IF NOT EXISTS control_flags (
+        scope TEXT PRIMARY KEY,
+        halted INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        updated_at TEXT NOT NULL
+      );
     `);
 
     await this.ensureColumn('jobs', 'final_result', 'TEXT');
@@ -598,6 +605,41 @@ export class HelmrSQLiteStore {
       args: [swarmId],
     });
     return rs.rows.map(rowToSwarmTask);
+  }
+
+  // ── Control flags (durable kill-switch) ──────────────────────────────
+
+  async setControlFlag(scope: string, halted: boolean, reason?: string, now = new Date()): Promise<void> {
+    await this.client.execute({
+      sql: `INSERT INTO control_flags (scope, halted, reason, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(scope) DO UPDATE SET halted=excluded.halted, reason=excluded.reason, updated_at=excluded.updated_at`,
+      args: [scope, halted ? 1 : 0, reason ?? null, now.toISOString()],
+    });
+  }
+
+  async getControlFlag(scope: string): Promise<{ halted: boolean; reason?: string; updatedAt: string } | undefined> {
+    const rs = await this.client.execute({
+      sql: 'SELECT halted, reason, updated_at FROM control_flags WHERE scope=?',
+      args: [scope],
+    });
+    const row = rs.rows[0];
+    if (!row) return undefined;
+    return {
+      halted: Number(row['halted']) === 1,
+      reason: (row['reason'] as string | null) ?? undefined,
+      updatedAt: row['updated_at'] as string,
+    };
+  }
+
+  async listControlFlags(): Promise<Array<{ scope: string; halted: boolean; reason?: string; updatedAt: string }>> {
+    const rs = await this.client.execute('SELECT scope, halted, reason, updated_at FROM control_flags ORDER BY scope ASC');
+    return rs.rows.map((row) => ({
+      scope: row['scope'] as string,
+      halted: Number(row['halted']) === 1,
+      reason: (row['reason'] as string | null) ?? undefined,
+      updatedAt: row['updated_at'] as string,
+    }));
   }
 }
 

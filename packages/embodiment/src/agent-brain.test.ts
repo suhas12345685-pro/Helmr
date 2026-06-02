@@ -73,3 +73,32 @@ test('the loop stops and fails safely on a permission error', async () => {
 
   await runtime.shutdown();
 });
+
+test('runAgentLoop halts within one step when the kill-switch is engaged', async () => {
+  const provider = new MockWorkspaceProvider();
+  const runtime = new MultiAgentRuntime(provider);
+  const agent = await runtime.spawnAgent({ role: 'haltable', permissions: ['read_only', 'workspace_only'] });
+
+  let steps = 0;
+  const decider: AgentDecider = {
+    async decide() {
+      steps += 1;
+      return { type: 'observe' };
+    },
+  };
+
+  // Engaged from the start: the loop must stop before taking any action.
+  const result = await runAgentLoop(agent, {
+    task: 'work that should be recalled',
+    decider,
+    maxSteps: 10,
+    shouldHalt: () => true,
+  });
+
+  assert.equal(result.status, 'halted');
+  assert.equal(result.steps, 0);
+  assert.equal(steps, 0, 'decider must not run once halted');
+  assert.equal(agent.status, 'idle');
+
+  await runtime.shutdown();
+});

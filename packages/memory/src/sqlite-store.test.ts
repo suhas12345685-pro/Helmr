@@ -189,3 +189,29 @@ test('durable store reclaims expired running jobs but skips active leases', asyn
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
+
+test('control flags persist and toggle (durable kill-switch backing)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-store-'));
+  let store: HelmrSQLiteStore | undefined;
+  try {
+    store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+
+    assert.equal(await store.getControlFlag('global'), undefined);
+
+    await store.setControlFlag('global', true, 'maintenance window');
+    const flag = await store.getControlFlag('global');
+    assert.equal(flag?.halted, true);
+    assert.equal(flag?.reason, 'maintenance window');
+
+    await store.setControlFlag('agent-1', true);
+    const engaged = (await store.listControlFlags()).filter((f) => f.halted).map((f) => f.scope).sort();
+    assert.deepEqual(engaged, ['agent-1', 'global']);
+
+    await store.setControlFlag('global', false);
+    assert.equal((await store.getControlFlag('global'))?.halted, false);
+  } finally {
+    store?.close();
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});

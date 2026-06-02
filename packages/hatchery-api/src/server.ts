@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { HelmrSQLiteStore, type HelmrStoreJob } from '../../memory/src/sqlite-store.js';
+import { KillSwitch, GLOBAL_SCOPE } from '../../scheduler/src/kill-switch.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING, saveRoutingConfig, type ModelRoute, type TaskKind } from '../../router/src/routing-config.js';
 import { ConfigFileManager } from '../../config/src/config-files.js';
@@ -110,6 +111,9 @@ export function createHatcheryApp(
   const channelConfig = new ChannelConfigStore(dataDir, { webchatEndpoint: `http://localhost:${HATCHERY_PORT}` });
   const dreamJournal = new DreamJournal(dataDir);
   const secrets = new SecretStore(configManager.dir);
+  // Emergency-stop substrate: the kill-switch shares the durable store so a halt
+  // engaged here, from the CLI, or by the daemon is the same flag everywhere.
+  const killSwitch = new KillSwitch({ store });
   // Skills are read fresh from disk on each request, so the API always reflects
   // the latest self-taught abilities. The long-running server (startHatcheryServer)
   // additionally watches the directory to hot-reload in-process consumers.
@@ -165,6 +169,32 @@ export function createHatcheryApp(
       dataDir,
       jobCount: jobs.length,
     });
+  });
+
+  // GET /api/kill-switch — current halt state for the emergency-stop control.
+  app.get('/api/kill-switch', async (c) => {
+    const engaged = await killSwitch.listHalted();
+    return c.json({
+      halted: engaged.some((f) => f.scope === GLOBAL_SCOPE),
+      scopes: engaged,
+    });
+  });
+
+  // POST /api/kill-switch/halt — engage the emergency stop (global or per-agent).
+  app.post('/api/kill-switch/halt', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const scope = typeof body?.scope === 'string' && body.scope ? body.scope : GLOBAL_SCOPE;
+    const reason = typeof body?.reason === 'string' ? body.reason : undefined;
+    await killSwitch.halt(scope, reason);
+    return c.json({ halted: true, scope, reason });
+  });
+
+  // POST /api/kill-switch/resume — clear the emergency stop.
+  app.post('/api/kill-switch/resume', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const scope = typeof body?.scope === 'string' && body.scope ? body.scope : GLOBAL_SCOPE;
+    await killSwitch.resume(scope);
+    return c.json({ halted: false, scope });
   });
 
   // GET /api/jobs

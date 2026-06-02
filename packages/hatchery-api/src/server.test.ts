@@ -393,3 +393,42 @@ test('channels reject wrong pairing code without activating the channel', async 
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
+
+test('kill-switch endpoints engage, report, and clear the emergency stop', async () => {
+  const previousToken = process.env['HELMR_API_TOKEN'];
+  delete process.env['HELMR_API_TOKEN'];
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-hatchery-ks-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+
+    const initial = await (await app.request('/api/kill-switch')).json();
+    assert.equal(initial.halted, false);
+
+    const halted = await app.request('/api/kill-switch/halt', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'operator stop' }),
+    });
+    assert.equal(halted.status, 200);
+
+    const state = await (await app.request('/api/kill-switch')).json();
+    assert.equal(state.halted, true);
+    assert.equal(state.scopes[0].reason, 'operator stop');
+
+    await app.request('/api/kill-switch/resume', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const cleared = await (await app.request('/api/kill-switch')).json();
+    assert.equal(cleared.halted, false);
+  } finally {
+    if (previousToken === undefined) delete process.env['HELMR_API_TOKEN'];
+    else process.env['HELMR_API_TOKEN'] = previousToken;
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});

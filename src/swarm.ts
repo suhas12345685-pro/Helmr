@@ -140,6 +140,8 @@ export interface OrchestrateSwarmOptions {
   /** Concurrency limit for parallel subtasks. */
   concurrency?: number;
   log?: (message: string) => void;
+  /** Kill-switch hook: when it returns true, remaining subtasks are skipped. */
+  shouldHalt?: () => boolean | Promise<boolean>;
 }
 
 export interface SwarmRunResult {
@@ -190,6 +192,14 @@ export async function orchestrateSwarm(options: OrchestrateSwarmOptions): Promis
   let failed = 0;
 
   const runTask = async (task: SwarmTask): Promise<void> => {
+    if (options.shouldHalt && (await options.shouldHalt())) {
+      await store.updateSwarmTask(task.id, { status: 'failed', error: 'halted by kill-switch' });
+      task.error = 'halted by kill-switch';
+      task.status = 'failed';
+      failed += 1;
+      log(`Swarm task skipped (kill-switch engaged): ${task.title}`);
+      return;
+    }
     log(`Swarm task running: ${task.title}`);
     await store.updateSwarmTask(task.id, { status: 'running' });
     try {

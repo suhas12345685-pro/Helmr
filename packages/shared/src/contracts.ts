@@ -75,6 +75,12 @@ export const HelmrJobSchema = z
       'succeeded',
       'failed',
       'cancelled',
+      // Recoverable pauses (autonomy substrate): a tripped budget or an engaged
+      // kill-switch parks a job here; it resumes when the Operator clears the
+      // condition. `rolled_back` marks a job whose in-flight writes were reverted.
+      'paused_budget',
+      'paused_killswitch',
+      'rolled_back',
     ]),
     lane: z.enum(['interactive', 'background', 'maintenance']),
     priority: z.number().int().min(0).max(100),

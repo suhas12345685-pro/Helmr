@@ -30,6 +30,9 @@ Usage:
   helmr start hatchery        Start the Hatchery dashboard and UI
   helmr start all             Start Gateway and Hatchery daemons
   helmr stop                  Stop all background daemons
+  helmr halt [--agent <id>]   Engage the kill-switch (global, or one agent)
+  helmr resume [--agent <id>] Clear the kill-switch
+  helmr kill-switch           Show engaged kill-switch scopes
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -135,6 +138,16 @@ async function runRequest(
   }
 }
 
+async function openKillSwitch(): Promise<{ killSwitch: import('../packages/scheduler/src/kill-switch.js').KillSwitch; store: import('../packages/memory/src/sqlite-store.js').HelmrSQLiteStore }> {
+  const { join } = await import('node:path');
+  const { HelmrSQLiteStore } = await import('../packages/memory/src/sqlite-store.js');
+  const { KillSwitch } = await import('../packages/scheduler/src/kill-switch.js');
+  const paths = getHelmrPaths();
+  const store = new HelmrSQLiteStore(join(paths.dataDir, 'helmr.db'));
+  await store.init();
+  return { killSwitch: new KillSwitch({ store }), store };
+}
+
 async function main(): Promise<void> {
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printUsage();
@@ -169,6 +182,37 @@ async function main(): Promise<void> {
     printSelfTestResults(results);
     const allPassed = results.every((r) => r.passed);
     process.exit(allPassed ? 0 : 1);
+  }
+
+  if (command === 'halt' || command === 'resume' || command === 'kill-switch') {
+    const ks = await openKillSwitch();
+    try {
+      const agentFlagIndex = args.indexOf('--agent');
+      const scope = agentFlagIndex >= 0 ? args[agentFlagIndex + 1] : undefined;
+
+      if (command === 'kill-switch') {
+        const engaged = await ks.killSwitch.listHalted();
+        if (engaged.length === 0) {
+          console.log('Kill-switch: clear (no halts engaged).');
+        } else {
+          console.log('Kill-switch ENGAGED for:');
+          for (const f of engaged) console.log(`  - ${f.scope}${f.reason ? ` — ${f.reason}` : ''} (${f.updatedAt})`);
+        }
+        process.exit(0);
+      }
+
+      if (command === 'halt') {
+        const reason = args.slice(1).filter((a) => a !== '--agent' && a !== scope).join(' ') || undefined;
+        await ks.killSwitch.halt(scope, reason);
+        console.log(`Halted ${scope ? `agent ${scope}` : 'ALL work (global)'}.${reason ? ` Reason: ${reason}` : ''}`);
+      } else {
+        await ks.killSwitch.resume(scope);
+        console.log(`Resumed ${scope ? `agent ${scope}` : 'ALL work (global)'}.`);
+      }
+      process.exit(0);
+    } finally {
+      ks.store.close();
+    }
   }
 
   if (command === 'start') {
