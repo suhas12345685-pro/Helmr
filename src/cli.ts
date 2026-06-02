@@ -33,6 +33,7 @@ Usage:
   helmr halt [--agent <id>]   Engage the kill-switch (global, or one agent)
   helmr resume [--agent <id>] Clear the kill-switch
   helmr kill-switch           Show engaged kill-switch scopes
+  helmr rollback <jobId>      Revert a job's workspace changes to its checkpoint
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -182,6 +183,29 @@ async function main(): Promise<void> {
     printSelfTestResults(results);
     const allPassed = results.every((r) => r.passed);
     process.exit(allPassed ? 0 : 1);
+  }
+
+  if (command === 'rollback') {
+    const jobId = subCommand;
+    if (!jobId) {
+      console.error('Usage: helmr rollback <jobId>');
+      process.exit(1);
+    }
+    const { Checkpointer } = await import('../packages/hands/src/checkpoint.js');
+    const checkpointer = new Checkpointer({ rootDir: getHelmrPaths().dataDir });
+    const ref = await checkpointer.loadLatest(jobId);
+    if (!ref) {
+      console.error(`No recoverable checkpoint found for job ${jobId}.`);
+      process.exit(1);
+    }
+    if (ref.skipped) {
+      console.error(`Checkpoint for job ${jobId} was skipped (${ref.reason ?? 'too large'}); cannot roll back.`);
+      process.exit(1);
+    }
+    const summary = await checkpointer.rollback(ref);
+    await checkpointer.discard(ref);
+    console.log(`Rolled back job ${jobId}: restored ${summary.restored} file(s), removed ${summary.removed}.`);
+    process.exit(0);
   }
 
   if (command === 'halt' || command === 'resume' || command === 'kill-switch') {

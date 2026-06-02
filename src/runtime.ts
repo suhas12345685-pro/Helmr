@@ -16,6 +16,7 @@ import {
   codingAgentChain,
 } from '../packages/mastra/src/index.js';
 import { BudgetExceededError, type BudgetLedger } from '../packages/governor/src/index.js';
+import { Checkpointer } from '../packages/hands/src/checkpoint.js';
 import { HelmrPlanSchema } from '../packages/shared/src/index.js';
 import type { HelmrJob, HelmrPlan } from '../packages/shared/src/index.js';
 import { getBudgetLedger } from './governor.js';
@@ -47,7 +48,7 @@ export interface RunJobResult {
   jobId: string;
   answer: string;
   plan: HelmrPlan;
-  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'paused_budget' | 'paused_killswitch';
+  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'paused_budget' | 'paused_killswitch' | 'rolled_back';
   deniedReasons?: string[];
 }
 
@@ -288,8 +289,52 @@ INSTRUCTIONS:
 4. After completing code modifications, you MUST verify that the changes compile cleanly. Use the \`shell_read\` tool to run typechecks or compiler commands (e.g. \`tsc --noEmit\` or \`npm run typecheck\`).
 5. Provide a summary of your actions once all steps are successfully completed.`;
 
-      const result = await guardedGenerate(codingAgentChain(), [{ role: 'user', content: codingPrompt }]);
-      answer = result.text ?? '';
+      // Reversible writes: checkpoint the workspace before the write-capable
+      // coding pass; auto-rollback to it if the pass fails, the budget trips, or
+      // the kill-switch engages mid-write.
+      const checkpointer = new Checkpointer({ rootDir: paths.dataDir });
+      let checkpointRef;
+      try {
+        checkpointRef = await checkpointer.create(claimed.id, event.workspace.path);
+        await auditLog.append({
+          kind: 'checkpoint',
+          jobId: claimed.id,
+          createdAt: new Date().toISOString(),
+          data: checkpointRef,
+        });
+      } catch (ckptErr) {
+        log(`Checkpoint skipped: ${ckptErr instanceof Error ? ckptErr.message : String(ckptErr)}`);
+      }
+
+      try {
+        const result = await guardedGenerate(codingAgentChain(), [{ role: 'user', content: codingPrompt }]);
+        answer = result.text ?? '';
+        if (checkpointRef && !checkpointRef.skipped) await checkpointer.discard(checkpointRef);
+      } catch (writeErr) {
+        // An approval pause is not a failure — keep the checkpoint and let the
+        // outer handler park the job; resuming will re-execute.
+        if (writeErr instanceof Error && writeErr.message.includes('Awaiting human approval')) throw writeErr;
+        if (checkpointRef && !checkpointRef.skipped) {
+          const cause = writeErr instanceof Error ? writeErr.message : String(writeErr);
+          const summary = await checkpointer.rollback(checkpointRef);
+          await auditLog.append({
+            kind: 'rollback',
+            jobId: claimed.id,
+            createdAt: new Date().toISOString(),
+            data: { ...summary, cause },
+          });
+          await checkpointer.discard(checkpointRef);
+          await store.updateJobStatus(claimed.id, 'rolled_back', `auto-rollback after ${cause}`);
+          log(`Rolled back ${summary.restored} file(s), removed ${summary.removed} after: ${cause}`);
+          return {
+            jobId: claimed.id,
+            answer: `Changes were rolled back to a clean checkpoint after: ${cause}`,
+            plan: plan!,
+            status: 'rolled_back',
+          };
+        }
+        throw writeErr;
+      }
     } else {
       log('Executing approved steps...');
       answer = await executeReadPlan(plan, event.workspace.path, text, log, store, guardedGenerate);
