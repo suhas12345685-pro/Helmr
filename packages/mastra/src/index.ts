@@ -11,7 +11,25 @@ import { reviewWorkflow } from './workflows/review.workflow.js';
 import { deliveryWorkflow } from './workflows/delivery.workflow.js';
 
 export { councilAgent, codingAgent, researchAgent, fastAgent };
+export { createCouncilAgent, councilModel } from './agents/council.agent.js';
+export { createResearchAgent, researchModel } from './agents/research.agent.js';
+export { createCodingAgent, codingModel } from './agents/coding.agent.js';
 export { planningWorkflow, executionWorkflow, intakeWorkflow, reviewWorkflow, deliveryWorkflow };
+export {
+  generateWithFailover,
+  llmTimeoutMs,
+  type GenerateAgent,
+  type AgentAttempt,
+  type MastraGenerateResult,
+  type ResilientGenerateOptions,
+} from './resilience.js';
+export {
+  councilAgentChain,
+  researchAgentChain,
+  codingAgentChain,
+  parseFallbackModels,
+  resetAgentChainCache,
+} from './agent-chains.js';
 export { readWorkspaceTool, readWorkspaceFileTool } from './tools/read-workspace.tool.js';
 export { shellReadTool, gitStatusTool, gitLogTool } from './tools/shell-read.tool.js';
 export { requestReceiptTool } from './tools/request-receipt.tool.js';

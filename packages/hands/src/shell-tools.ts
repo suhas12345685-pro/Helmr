@@ -53,7 +53,11 @@ function isAllowedCommand(argv: CommandArgv): boolean {
   });
 }
 
-export async function runShellRead(workspacePath: string, argv: CommandArgv): Promise<ShellResult> {
+export async function runShellRead(
+  workspacePath: string,
+  argv: CommandArgv,
+  env?: Record<string, string>,
+): Promise<ShellResult> {
   if (!isAllowedCommand(argv)) {
     throw new Error(`command not in read-only allowlist: ${JSON.stringify(argv)}`);
   }
@@ -61,29 +65,39 @@ export async function runShellRead(workspacePath: string, argv: CommandArgv): Pr
   const result = await runProcess(workspacePath, argv, {
     timeoutMs: 15_000,
     maxBufferBytes: 1024 * 512,
+    env,
   });
 
   return toShellResult(result);
 }
 
-export async function runGitStatus(workspacePath: string): Promise<ShellResult> {
+export async function runGitStatus(
+  workspacePath: string,
+  env?: Record<string, string>,
+): Promise<ShellResult> {
   try {
     return toShellResult(await runProcess(workspacePath, ['git', 'status'], {
       timeoutMs: 10_000,
       maxBufferBytes: 1024 * 512,
+      env,
     }));
   } catch {
     return { stdout: '', stderr: 'not a git repository or git not available', command: 'git status' };
   }
 }
 
-export async function runGitLog(workspacePath: string, maxCount = 10): Promise<ShellResult> {
+export async function runGitLog(
+  workspacePath: string,
+  maxCount = 10,
+  env?: Record<string, string>,
+): Promise<ShellResult> {
   const safeMaxCount = Number.isInteger(maxCount) && maxCount > 0 ? Math.min(maxCount, 50) : 10;
   const argv = ['git', 'log', '--oneline', `-${safeMaxCount}`];
   try {
     return toShellResult(await runProcess(workspacePath, argv, {
       timeoutMs: 10_000,
       maxBufferBytes: 1024 * 512,
+      env,
     }));
   } catch {
     return { stdout: '', stderr: 'not a git repository or no commits', command: argv.join(' ') };

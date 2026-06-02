@@ -130,6 +130,7 @@ function isAllowedWriteCommand(argv: readonly string[]): boolean {
 export async function runShellWrite(
   workspacePath: string,
   argv: readonly string[],
+  env?: Record<string, string>,
 ): Promise<ShellWriteResult> {
   if (!isAllowedWriteCommand(argv)) {
     throw new Error(`command not in write allowlist: ${JSON.stringify(argv)}`);
@@ -138,12 +139,17 @@ export async function runShellWrite(
   return runProcess(workspacePath, argv, {
     timeoutMs: 120_000,
     maxBufferBytes: 1024 * 1024,
+    env,
   });
 }
 
 // ── Git write operations ───────────────────────────────────────────
 
-export async function gitAdd(workspacePath: string, paths: string[]): Promise<ShellWriteResult> {
+export async function gitAdd(
+  workspacePath: string,
+  paths: string[],
+  env?: Record<string, string>,
+): Promise<ShellWriteResult> {
   const root = resolve(workspacePath);
   const sanitizedPaths: string[] = [];
 
@@ -166,21 +172,26 @@ export async function gitAdd(workspacePath: string, paths: string[]): Promise<Sh
     throw new Error('no paths provided to gitAdd');
   }
 
-  return runShellWrite(workspacePath, ['git', 'add', ...sanitizedPaths]);
+  return runShellWrite(workspacePath, ['git', 'add', ...sanitizedPaths], env);
 }
 
-export async function gitCommit(workspacePath: string, message: string): Promise<ShellWriteResult> {
+export async function gitCommit(
+  workspacePath: string,
+  message: string,
+  env?: Record<string, string>,
+): Promise<ShellWriteResult> {
   if (/[\u0000\r\n]/u.test(message)) {
     throw new Error('commit message contains forbidden control delimiters');
   }
 
-  return runShellWrite(workspacePath, ['git', 'commit', '-m', message]);
+  return runShellWrite(workspacePath, ['git', 'commit', '-m', message], env);
 }
 
 export async function gitCheckout(
   workspacePath: string,
   ref: string,
   newBranch = false,
+  env?: Record<string, string>,
 ): Promise<ShellWriteResult> {
   const cleanRef = ref.replace(/[^a-zA-Z0-9/._-]/g, '');
   if (cleanRef !== ref) {
@@ -189,6 +200,7 @@ export async function gitCheckout(
   return runShellWrite(
     workspacePath,
     newBranch ? ['git', 'checkout', '-b', cleanRef] : ['git', 'checkout', cleanRef],
+    env,
   );
 }
 
@@ -198,6 +210,7 @@ export async function npmInstall(
   workspacePath: string,
   packages: string[],
   opts: { dev?: boolean; exact?: boolean } = {},
+  env?: Record<string, string>,
 ): Promise<ShellWriteResult> {
   const flags = [opts.dev ? '--save-dev' : '', opts.exact ? '--save-exact' : ''].filter(Boolean);
 
@@ -213,5 +226,5 @@ export async function npmInstall(
     throw new Error('no packages specified for npmInstall');
   }
 
-  return runShellWrite(workspacePath, ['npm', 'install', ...flags, ...sanitizedPkgs]);
+  return runShellWrite(workspacePath, ['npm', 'install', ...flags, ...sanitizedPkgs], env);
 }
