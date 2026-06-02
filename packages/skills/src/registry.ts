@@ -83,17 +83,20 @@ export class SkillRegistry {
       return [];
     }
 
-    const skills: SkillManifest[] = [];
-    for (const entry of entries.sort()) {
-      if (!entry.endsWith(SKILL_FILE_SUFFIX)) continue;
+    const loadSkillPromises = entries.sort().map(async (entry) => {
+      if (!entry.endsWith(SKILL_FILE_SUFFIX)) return null;
       try {
+        // ⚡ Bolt: parallelize file reading and parsing
         const raw = await readFile(join(this.skillsDir, entry), 'utf8');
-        skills.push(parseSkillManifest(JSON.parse(raw)));
+        return parseSkillManifest(JSON.parse(raw));
       } catch {
         // Skip malformed or partially-written skill files so discovery is robust.
+        return null;
       }
-    }
-    return skills;
+    });
+
+    const results = await Promise.all(loadSkillPromises);
+    return results.filter((skill): skill is SkillManifest => skill !== null);
   }
 
   async listEnabled(): Promise<SkillManifest[]> {
