@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { evaluateToolReceipt } from '../../cortex/src/policy.js';
+import { CredentialBroker } from '../../config/src/credential-broker.js';
 import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
@@ -34,6 +35,12 @@ export async function executeReceipt(receipt: ToolReceipt, workspacePath: string
 async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<unknown> {
   const input = receipt.input as Record<string, unknown>;
 
+  // Scope the subprocess env to only what this receipt's capability requires —
+  // a git/npm tool never inherits the daemon's provider API keys. The grant is
+  // recorded by names only (the broker never logs values).
+  const broker = new CredentialBroker();
+  const { env: scopedEnv } = broker.grant([receipt.capability]);
+
   switch (receipt.tool) {
     case 'read_workspace':
       return summarizeWorkspace(workspacePath, (input['limit'] as number) ?? 200);
@@ -42,13 +49,13 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
       return readWorkspaceFile(workspacePath, input['filePath'] as string);
 
     case 'shell_read':
-      return runShellRead(workspacePath, input['argv'] as string[]);
+      return runShellRead(workspacePath, input['argv'] as string[], scopedEnv);
 
     case 'git_status':
-      return runGitStatus(workspacePath);
+      return runGitStatus(workspacePath, scopedEnv);
 
     case 'git_log':
-      return runGitLog(workspacePath, (input['maxCount'] as number) ?? 10);
+      return runGitLog(workspacePath, (input['maxCount'] as number) ?? 10, scopedEnv);
 
     case 'write_workspace_file':
       return writeWorkspaceFile(workspacePath, input['filePath'] as string, input['content'] as string);
@@ -60,22 +67,24 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
       return renameWorkspaceFile(workspacePath, input['fromPath'] as string, input['toPath'] as string);
 
     case 'shell_write':
-      return runShellWrite(workspacePath, input['argv'] as string[]);
+      return runShellWrite(workspacePath, input['argv'] as string[], scopedEnv);
 
     case 'git_add':
-      return gitAdd(workspacePath, input['paths'] as string[]);
+      return gitAdd(workspacePath, input['paths'] as string[], scopedEnv);
 
     case 'git_commit':
-      return gitCommit(workspacePath, input['message'] as string);
+      return gitCommit(workspacePath, input['message'] as string, scopedEnv);
 
     case 'git_checkout':
-      return gitCheckout(workspacePath, input['ref'] as string, input['newBranch'] === true);
+      return gitCheckout(workspacePath, input['ref'] as string, input['newBranch'] === true, scopedEnv);
 
     case 'package_install':
-      return npmInstall(workspacePath, input['packages'] as string[], {
-        dev: input['dev'] === true,
-        exact: input['exact'] === true,
-      });
+      return npmInstall(
+        workspacePath,
+        input['packages'] as string[],
+        { dev: input['dev'] === true, exact: input['exact'] === true },
+        scopedEnv,
+      );
 
     case 'list_skills':
       return new SkillRegistry(globalSkillsDir(getHelmrPaths().dataDir)).list();

@@ -1,7 +1,31 @@
 # Phase 1 — Implementation Plan: The Four Edge Boundaries + Kill-Switch
 
-Status: design / planning (not yet implemented)
-Last updated: 2026-06-01
+Status: in progress
+Last updated: 2026-06-02
+
+Implemented so far (this branch):
+- **Budgets (§1, partial):** `packages/governor` — a `BudgetLedger` tracking USD
+  spend (AI-SDK token usage → USD via a per-model price table), tokens, actions,
+  wall-clock and a sliding tool-rate, with a persisted per-day total
+  (`FileDailySpendStore`) that survives restarts. Wired into `src/runtime.ts`:
+  every agent call is budget-checked then recorded and audited (`budget` audit
+  kind); a trip pauses the job (resumable). Caps come from `HELMR_BUDGET_*` env.
+  Still outstanding: a dedicated `paused_budget` job state and the outward-gate
+  integration.
+- **Scoped credentials (§3):** `packages/config/src/credential-broker.ts` — a
+  `CredentialBroker` grants only the minimal env a receipt's capability needs
+  (a git token for `git_write`, npm token for `package_install`), never the
+  daemon's provider API keys. `packages/hands` runs each tool subprocess with
+  that scoped env instead of inheriting `process.env`.
+- **Provider resilience (Reliability):** `packages/router/src/failover.ts` —
+  `runWithFailover` (per-attempt timeout + transient retry + cross-model
+  failover), wrapped by `generateWithFailover` and wired into the runtime's
+  agent calls so a provider blip no longer sinks a job. A key-gated live-LLM CI
+  smoke test (`src/llm-smoke.test.ts` + `.github/workflows/ci.yml`) now exercises
+  the real reasoning path.
+
+Still design-only below: outward-action gate (§2), checkpoint/rollback (§4),
+kill-switch (§5).
 
 This expands Phase 1 of `docs/autonomy-roadmap.md` into a concrete, file-level
 plan. Phase 1 is the critical path: it is the enforced substrate that makes full

@@ -13,6 +13,13 @@ export interface ProcessResult {
 export interface ProcessRunOptions {
   timeoutMs: number;
   maxBufferBytes: number;
+  /**
+   * Scoped environment for the child process. When provided, the child runs with
+   * exactly this env (e.g. base operational keys + capability-granted secrets
+   * from the credential broker) instead of inheriting the daemon's full env.
+   * When omitted, the child inherits `process.env` (back-compat).
+   */
+  env?: Record<string, string>;
 }
 
 export async function runProcess(
@@ -32,6 +39,7 @@ export async function runProcess(
       cwd: root,
       shell: false,
       windowsHide: true,
+      ...(options.env ? { env: options.env as NodeJS.ProcessEnv } : {}),
     });
 
     let stdout = '';

@@ -22,20 +22,25 @@ Self-extension:
 - To create or update a skill, request a receipt with tool "create_skill" and capability "skill_write", passing a skill manifest as input ({ id, name, description, triggers, instructions }). This is a gated write and requires human approval; once approved, the skill is written into the workspace and auto-discovered — no restart needed.
 `);
 
-const codingModel = process.env['HELMR_CODING_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
+export const codingModel = process.env['HELMR_CODING_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
 
-export const codingAgent = new Agent({
-  id: 'coding',
-  name: 'Coding Agent',
-  description: 'Implements code changes with receipt-based write gating.',
-  instructions: CODING_INSTRUCTIONS,
-  model: codingModel,
-  tools: {
-    read_workspace: readWorkspaceTool,
-    read_workspace_file: readWorkspaceFileTool,
-    shell_read: shellReadTool,
-    git_status: gitStatusTool,
-    request_receipt: requestReceiptTool,
-    list_skills: listSkillsTool,
-  },
-});
+/** Build a Coding agent bound to a specific model (used for failover chains). */
+export function createCodingAgent(model: string = codingModel): Agent {
+  return new Agent({
+    id: 'coding',
+    name: 'Coding Agent',
+    description: 'Implements code changes with receipt-based write gating.',
+    instructions: CODING_INSTRUCTIONS,
+    model,
+    tools: {
+      read_workspace: readWorkspaceTool,
+      read_workspace_file: readWorkspaceFileTool,
+      shell_read: shellReadTool,
+      git_status: gitStatusTool,
+      request_receipt: requestReceiptTool,
+      list_skills: listSkillsTool,
+    },
+  });
+}
+
+export const codingAgent = createCodingAgent();

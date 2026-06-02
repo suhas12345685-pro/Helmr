@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export type AuditRecordKind = 'event' | 'job' | 'plan' | 'receipt' | 'result';
+export type AuditRecordKind = 'event' | 'job' | 'plan' | 'receipt' | 'result' | 'budget';
 
 export interface AuditRecord {
   kind: AuditRecordKind;

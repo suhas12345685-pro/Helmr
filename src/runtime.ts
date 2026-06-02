@@ -8,11 +8,16 @@ import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import type { HelmrStoreJob } from '../packages/memory/src/sqlite-store.js';
 import { evaluatePlan } from '../packages/cortex/src/policy.js';
 import { summarizeWorkspace } from '../packages/hands/src/read-tools.js';
-import { councilAgent } from '../packages/mastra/src/agents/council.agent.js';
-import { researchAgent } from '../packages/mastra/src/agents/research.agent.js';
-import { codingAgent } from '../packages/mastra/src/agents/coding.agent.js';
+import {
+  generateWithFailover,
+  councilAgentChain,
+  researchAgentChain,
+  codingAgentChain,
+} from '../packages/mastra/src/index.js';
+import { BudgetExceededError, type BudgetLedger } from '../packages/governor/src/index.js';
 import { HelmrPlanSchema } from '../packages/shared/src/index.js';
 import type { HelmrJob, HelmrPlan } from '../packages/shared/src/index.js';
+import { getBudgetLedger } from './governor.js';
 import {
   createLocalPlan,
   planRequiresCodingAgent,
@@ -41,9 +46,20 @@ export interface RunJobResult {
   jobId: string;
   answer: string;
   plan: HelmrPlan;
-  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval';
+  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'paused_budget';
   deniedReasons?: string[];
 }
+
+/**
+ * A budget-guarded LLM call: checks the ledger before the call (pausing the job
+ * if a limit is tripped), runs the agent chain with provider failover, then
+ * records the winning call's token usage as USD spend and audits it.
+ */
+type GuardedGenerate = (
+  chain: Parameters<typeof generateWithFailover>[0],
+  messages: Parameters<typeof generateWithFailover>[1],
+  genOptions?: Parameters<typeof generateWithFailover>[2],
+) => Promise<Awaited<ReturnType<typeof generateWithFailover>>>;
 
 export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
   const { text, workspacePath = process.cwd(), onProgress } = options;
@@ -105,6 +121,40 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
     timeoutMs: 5_000,
   });
 
+  const ledger = getBudgetLedger();
+  const guardedGenerate: GuardedGenerate = async (chain, messages, genOptions) => {
+    const pre = await ledger.check(claimed.id, 0);
+    if (!pre.allowed) {
+      await auditLog.append({
+        kind: 'budget',
+        jobId: claimed.id,
+        createdAt: new Date().toISOString(),
+        data: { phase: 'pre_call', ...pre, snapshot: ledger.snapshot(claimed.id) },
+      });
+      throw new BudgetExceededError(pre);
+    }
+
+    let captured: { label: string; usage: unknown } | undefined;
+    const result = await generateWithFailover(chain, messages, genOptions, {
+      onUsage: (info) => {
+        captured = info;
+      },
+    });
+
+    if (captured) {
+      const cost = await ledger.recordLlm(claimed.id, captured.label, captured.usage as never);
+      await auditLog.append({
+        kind: 'budget',
+        jobId: claimed.id,
+        createdAt: new Date().toISOString(),
+        data: { phase: 'record', model: captured.label, costUsd: cost, snapshot: ledger.snapshot(claimed.id) },
+      });
+    } else {
+      ledger.recordAction(claimed.id);
+    }
+    return result;
+  };
+
   let plan: HelmrPlan | undefined;
 
   try {
@@ -130,7 +180,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
         });
       } else {
         log('Planning...');
-        plan = await runCouncilPlanner(claimed.id, event.workspace.path, text);
+        plan = await runCouncilPlanner(claimed.id, event.workspace.path, text, guardedGenerate);
         await store.savePlan(plan);
       }
       await auditLog.append({ kind: 'plan', jobId: claimed.id, createdAt: new Date().toISOString(), data: plan });
@@ -217,11 +267,11 @@ INSTRUCTIONS:
 4. After completing code modifications, you MUST verify that the changes compile cleanly. Use the \`shell_read\` tool to run typechecks or compiler commands (e.g. \`tsc --noEmit\` or \`npm run typecheck\`).
 5. Provide a summary of your actions once all steps are successfully completed.`;
 
-      const result = await codingAgent.generate([{ role: 'user', content: codingPrompt }]);
+      const result = await guardedGenerate(codingAgentChain(), [{ role: 'user', content: codingPrompt }]);
       answer = result.text ?? '';
     } else {
       log('Executing approved steps...');
-      answer = await executeReadPlan(plan, event.workspace.path, text, log, store);
+      answer = await executeReadPlan(plan, event.workspace.path, text, log, store, guardedGenerate);
     }
 
     await auditLog.append({
@@ -241,7 +291,18 @@ INSTRUCTIONS:
     };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    if (errMsg.includes('Awaiting human approval')) {
+    if (err instanceof BudgetExceededError) {
+      // A tripped budget pauses the job (resumable once the Operator raises the
+      // cap) rather than failing it — failure would auto-requeue and re-trip.
+      log(`Budget limit reached (${err.trippedLimit}); pausing job.`);
+      await store.updateJobStatus(claimed.id, 'awaiting_approval', err.message);
+      return {
+        jobId: claimed.id,
+        answer: `Paused: ${err.message}. Raise the budget cap and re-run to resume.`,
+        plan: plan!,
+        status: 'paused_budget',
+      };
+    } else if (errMsg.includes('Awaiting human approval')) {
       log('Awaiting human owner approval for tool execution...');
       await store.updateJobStatus(claimed.id, 'awaiting_approval');
       return {
@@ -261,7 +322,12 @@ INSTRUCTIONS:
   }
 }
 
-async function runCouncilPlanner(jobId: string, workspacePath: string, text: string): Promise<HelmrPlan> {
+async function runCouncilPlanner(
+  jobId: string,
+  workspacePath: string,
+  text: string,
+  guardedGenerate: GuardedGenerate,
+): Promise<HelmrPlan> {
   if (shouldUseLocalAgentFallback()) {
     return createLocalPlan({ jobId, request: text });
   }
@@ -273,7 +339,7 @@ Request: ${text}
 Produce a HelmrPlan JSON object. For a summarization/inspection request, use workspace_read capability only.
 The plan id should be "plan_${jobId}".`;
 
-  const result = await councilAgent.generate([{ role: 'user', content: prompt }], {
+  const result = await guardedGenerate(councilAgentChain(), [{ role: 'user', content: prompt }], {
     structuredOutput: { schema: HelmrPlanSchema },
   });
 
@@ -286,6 +352,7 @@ async function executeReadPlan(
   originalRequest: string,
   log: (msg: string) => void,
   store: HelmrSQLiteStore,
+  guardedGenerate: GuardedGenerate,
 ): Promise<string> {
   log('Starting step-by-step read execution...');
   const stepOutputs: Record<string, unknown> = {};
@@ -365,9 +432,12 @@ Analyze these results and provide a comprehensive final answer to the user's req
   }
 
   try {
-    const result = await researchAgent.generate([{ role: 'user', content: prompt }]);
+    const result = await guardedGenerate(researchAgentChain(), [{ role: 'user', content: prompt }]);
     return result.text ?? '';
-  } catch {
+  } catch (err) {
+    // A budget trip must pause the job, not silently degrade to the offline
+    // synthesizer — let it propagate. Genuine LLM faults still fall back.
+    if (err instanceof BudgetExceededError) throw err;
     return synthesizeLocalAnswer({ request: originalRequest, workspacePath, stepOutputs });
   }
 }

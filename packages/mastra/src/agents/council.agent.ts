@@ -28,19 +28,24 @@ Output format when asked to produce a plan:
 - steps: array of steps with id, title, kind, agent, canRunInParallelWith, requiredCapabilities
 `);
 
-const councilModel = process.env['HELMR_COUNCIL_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
+export const councilModel = process.env['HELMR_COUNCIL_MODEL'] ?? process.env['HELMR_MODEL'] ?? 'anthropic/claude-sonnet-4-5';
 
-export const councilAgent = new Agent({
-  id: 'council',
-  name: 'Council Planner',
-  description: 'Plans and decomposes user requests into typed execution steps with risk assessment.',
-  instructions: COUNCIL_INSTRUCTIONS,
-  model: councilModel,
-  tools: {
-    read_workspace: readWorkspaceTool,
-    read_workspace_file: readWorkspaceFileTool,
-    git_status: gitStatusTool,
-    git_log: gitLogTool,
-    request_receipt: requestReceiptTool,
-  },
-});
+/** Build a Council agent bound to a specific model (used for failover chains). */
+export function createCouncilAgent(model: string = councilModel): Agent {
+  return new Agent({
+    id: 'council',
+    name: 'Council Planner',
+    description: 'Plans and decomposes user requests into typed execution steps with risk assessment.',
+    instructions: COUNCIL_INSTRUCTIONS,
+    model,
+    tools: {
+      read_workspace: readWorkspaceTool,
+      read_workspace_file: readWorkspaceFileTool,
+      git_status: gitStatusTool,
+      git_log: gitLogTool,
+      request_receipt: requestReceiptTool,
+    },
+  });
+}
+
+export const councilAgent = createCouncilAgent();
