@@ -34,6 +34,7 @@ Usage:
   helmr resume [--agent <id>] Clear the kill-switch
   helmr kill-switch           Show engaged kill-switch scopes
   helmr rollback <jobId>      Revert a job's workspace changes to its checkpoint
+  helmr policy [init]         Show (or initialize) the outward-action standing policy
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -205,6 +206,30 @@ async function main(): Promise<void> {
     const summary = await checkpointer.rollback(ref);
     await checkpointer.discard(ref);
     console.log(`Rolled back job ${jobId}: restored ${summary.restored} file(s), removed ${summary.removed}.`);
+    process.exit(0);
+  }
+
+  if (command === 'policy') {
+    const { StandingPolicyStore } = await import('../packages/config/src/standing-policy.js');
+    const store = new StandingPolicyStore(getHelmrPaths().configDir);
+    if (subCommand === 'init') {
+      await store.init();
+      console.log('Standing-approval policy initialized at config/standing-policy.json');
+      process.exit(0);
+    }
+    // Default: show the effective outward-action policy.
+    const policy = await store.load();
+    const rules = Object.entries(policy.rules);
+    console.log('Outward-action standing policy:');
+    if (rules.length === 0) {
+      console.log('  (none) — every outward action is gated (fail-safe default).');
+    } else {
+      for (const [capability, rule] of rules) {
+        console.log(`  ${capability}: ${JSON.stringify(rule)}`);
+      }
+    }
+    console.log('\nInward actions (workspace/shell/git writes) run automatically; they are');
+    console.log('reversible via checkpoints and bounded by the budget ledger.');
     process.exit(0);
   }
 
