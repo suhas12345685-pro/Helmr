@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import {
   cancel,
-  checkbox,
+  multiselect as checkbox,
   confirm,
   intro,
   isCancel,
@@ -175,7 +175,7 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
         message: `Enter ${option.label} API token`,
         mask: '•',
         validate(value) {
-          if (llm !== 'ollama' && value.trim().length === 0) {
+          if (llm !== 'ollama' && (!value || value.trim().length === 0)) {
             return `${option.label} requires a token to be configured now.`;
           }
 
