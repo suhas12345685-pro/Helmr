@@ -17,6 +17,7 @@ import {
   npmInstall,
 } from './write-tools.js';
 import { runShellRead, runGitStatus, runGitLog } from './shell-tools.js';
+import { gitPush, httpRequest, messageSend } from './outward-tools.js';
 import type { ToolReceipt, ToolResult } from '../../shared/src/index.js';
 
 export interface ExecuteReceiptOptions {
@@ -107,6 +108,35 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
         { dev: input['dev'] === true, exact: input['exact'] === true },
         scopedEnv,
       );
+
+    case 'git_push':
+      return gitPush(
+        workspacePath,
+        {
+          remote: input['remote'] as string | undefined,
+          branch: input['branch'] as string,
+          setUpstream: input['setUpstream'] === true,
+          force: input['force'] === true,
+        },
+        scopedEnv,
+      );
+
+    case 'http_request':
+      return httpRequest({
+        url: input['url'] as string,
+        method: input['method'] as string | undefined,
+        headers: input['headers'] as Record<string, string> | undefined,
+        body: input['body'] as string | undefined,
+        timeoutMs: input['timeoutMs'] as number | undefined,
+      });
+
+    case 'message_send':
+      return messageSend({
+        channel: input['channel'] as string,
+        text: input['text'] as string,
+        webhookUrl: input['webhookUrl'] as string,
+        extra: input['extra'] as Record<string, unknown> | undefined,
+      });
 
     case 'list_skills':
       return new SkillRegistry(globalSkillsDir(getHelmrPaths().dataDir)).list();

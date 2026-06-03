@@ -104,32 +104,32 @@ export function gateToolReceipt(
   }
 
   const input = (receipt.input ?? {}) as Record<string, unknown>;
+  const branch = (input['branch'] ?? input['ref']) as string | undefined;
+  const host = extractHost(input);
 
-  // Branch-constrained push-like actions.
-  if (rule.allowBranches || rule.denyBranches) {
-    const branch = (input['branch'] ?? input['ref']) as string | undefined;
-    if (!branch) {
-      return { tier: 'gated', reason: `${receipt.capability} needs a branch to match standing policy` };
-    }
+  // Push-like receipts carry a branch: evaluate branch constraints when declared.
+  if (typeof branch === 'string') {
     if (matchesAny(branch, rule.denyBranches)) {
       return { tier: 'gated', reason: `branch "${branch}" is denied for standing ${receipt.capability}` };
     }
-    if (matchesAny(branch, rule.allowBranches)) {
-      return { tier: 'standing', reason: `branch "${branch}" matches standing allow-list` };
+    if (rule.allowBranches) {
+      return matchesAny(branch, rule.allowBranches)
+        ? { tier: 'standing', reason: `branch "${branch}" matches standing allow-list` }
+        : { tier: 'gated', reason: `branch "${branch}" not in standing allow-list` };
     }
-    return { tier: 'gated', reason: `branch "${branch}" not in standing allow-list` };
   }
 
-  // Host-constrained network actions.
-  if (rule.allowHosts) {
-    const host = extractHost(input);
-    if (!host) {
-      return { tier: 'gated', reason: `${receipt.capability} needs a host to match standing policy` };
-    }
-    if (hostAllowed(host, rule.allowHosts)) {
-      return { tier: 'standing', reason: `host "${host}" matches standing allow-list` };
-    }
-    return { tier: 'gated', reason: `host "${host}" not in standing allow-list` };
+  // HTTP-like receipts carry a host: evaluate host constraints when declared.
+  if (typeof host === 'string' && rule.allowHosts) {
+    return hostAllowed(host, rule.allowHosts)
+      ? { tier: 'standing', reason: `host "${host}" matches standing allow-list` }
+      : { tier: 'gated', reason: `host "${host}" not in standing allow-list` };
+  }
+
+  // The rule declared constraints but this receipt's subject isn't covered by
+  // them — fail safe rather than grant blanket authority.
+  if (rule.allowBranches || rule.denyBranches || rule.allowHosts) {
+    return { tier: 'gated', reason: `${receipt.capability} receipt not covered by standing constraints` };
   }
 
   // A rule with no constraints grants blanket standing authority.
