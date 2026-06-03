@@ -18,8 +18,6 @@ import { createFixedWindowRateLimiter, getRateLimitPerMinute } from '../../share
 import { ChannelConfigStore, isKnownChannelName } from '../../channels/src/channel-config.js';
 import { DreamJournal } from '../../memory/src/dream.js';
 import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
-import { SubmissionStore } from '../../marketplace-submissions/src/index.js';
-import { BugStore } from '../../bug-triage/src/index.js';
 import type { SerializedAgentBody, TaskLedgerEntry } from '../../embodiment/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 
@@ -120,10 +118,6 @@ export function createHatcheryApp(
   // the latest self-taught abilities. The long-running server (startHatcheryServer)
   // additionally watches the directory to hot-reload in-process consumers.
   const skills = new SkillRegistry(globalSkillsDir(dataDir));
-  // Marketplace submissions and bug reports back the Hatchery trust/scan/bug
-  // panels. Both are read fresh from disk per request, like skills.
-  const submissions = new SubmissionStore(join(dataDir, 'marketplace', 'submissions'));
-  const bugs = new BugStore(join(dataDir, 'bugs'));
 
   app.use('*', async (c, next) => {
     c.header('X-Request-Id', normalizeRequestId(c.req.header('x-request-id')));
@@ -508,62 +502,6 @@ export function createHatcheryApp(
     const removed = await skills.remove(c.req.param('id'));
     if (!removed) return c.json({ error: 'not found' }, 404);
     return c.json({ removed: true });
-  });
-
-  // GET /api/marketplace — every submission with its trust/scan/bug status for
-  // the Hatchery marketplace panel.
-  app.get('/api/marketplace', async (c) => {
-    const records = await submissions.list();
-    return c.json({
-      items: records.map((r) => ({
-        id: r.id,
-        kind: r.kind,
-        name: r.name,
-        author: r.author,
-        source: r.source,
-        trustLevel: r.trustLevel,
-        riskLevel: r.riskLevel,
-        status: r.status,
-        decision: r.decision,
-        installable: r.installable,
-        autoEnabled: r.autoEnabled,
-        scanStatus: r.scanStatus,
-        scanSeverity: r.scanSeverity,
-        scanFindingCount: r.scanFindingCount,
-        lastScannedAt: r.lastScannedAt,
-        installCount: r.installCount,
-        knownIssues: r.knownIssues,
-        bugReports: r.bugReports,
-        permissions: r.permissions,
-        changelog: r.changelog,
-      })),
-    });
-  });
-
-  // GET /api/marketplace/:id — a single submission's full record.
-  app.get('/api/marketplace/:id', async (c) => {
-    const record = await submissions.get(c.req.param('id'));
-    if (!record) return c.json({ error: 'not found' }, 404);
-    return c.json({ item: record });
-  });
-
-  // GET /api/bugs — triaged bug reports with severity and lifecycle status.
-  app.get('/api/bugs', async (c) => {
-    const all = await bugs.list();
-    return c.json({
-      bugs: all.map((b) => ({
-        id: b.id,
-        title: b.input.title,
-        severity: b.severity,
-        status: b.status,
-        reproducible: b.reproducible,
-        labels: b.labels,
-        capabilityId: b.input.capabilityId,
-        fixBranch: b.fixBranch,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-      })),
-    });
   });
 
   // GET /api/agents — live embodied agents and their bodies/status

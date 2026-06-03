@@ -175,15 +175,7 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
         message: `Enter ${option.label} API token`,
         mask: '•',
         validate(value) {
-    fix-ci-failures-1901177994268664348
           if (llm !== 'ollama' && (!value || value.trim().length === 0)) {
- 
-        optimize-config-init-loop-1893168168975878889
-          if (llm !== 'ollama' && value?.trim().length === 0) {
- 
-          if (llm !== 'ollama' && (!value || value.trim().length === 0)) {
-         main
- main
             return `${option.label} requires a token to be configured now.`;
           }
 
@@ -195,7 +187,7 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
     config.llms[llm] = {
       enabled: true,
       tokenEnv: option.tokenEnv,
-      token: typeof token === "string" ? token.trim() : "",
+      token: typeof token === 'string' ? token.trim() : '',
     };
   }
 }
