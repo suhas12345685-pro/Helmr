@@ -175,7 +175,11 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
         message: `Enter ${option.label} API token`,
         mask: '•',
         validate(value) {
+        optimize-config-init-loop-1893168168975878889
           if (llm !== 'ollama' && value?.trim().length === 0) {
+ 
+          if (llm !== 'ollama' && (!value || value.trim().length === 0)) {
+         main
             return `${option.label} requires a token to be configured now.`;
           }
 
@@ -205,7 +209,7 @@ export async function runOnboarding(): Promise<void> {
       options: llmOptions.map(({ value, label, hint }) => ({ value, label, hint })),
       required: true,
     }),
-  );
+  ) as LlmId[];
 
   const selectedChannels = abortIfCancelled(
     await multiselect<ChannelId>({
@@ -213,7 +217,7 @@ export async function runOnboarding(): Promise<void> {
       options: channelOptions.map(({ value, label, hint }) => ({ value, label, hint })),
       required: true,
     }),
-  );
+  ) as ChannelId[];
 
   const config: HelmrConfig = {
     version: 1,
