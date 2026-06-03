@@ -4,13 +4,13 @@ Status: R&D source of truth
 Last researched: 2026-05-28
 Workspace: `C:\Users\DELL\Helmr`
 
-Helmr is a self-hosted, TypeScript-first AI orchestration system. A user describes an outcome, Helmr converts that request into a normalized job, plans the work, verifies the plan, runs safe tools and specialist agents, records the evidence, and shows the result in Hatchery.
+Helmr is a self-hosted, TypeScript-first dynamic agent runtime. A user describes an outcome, and Helmr assembles the operational form needed for that task: identity, skills, tools, memory context, decision strategy, sub-agents, execution method, safety policy, and verification process. It converts the request into a normalized job, plans the work, verifies the plan, runs safe tools and specialist agents, records the evidence, and shows the result in Hatchery.
 
 The product promise is simple:
 
 > Outcome in. Verified agent work out. The human stays in control.
 
-Helmr is not just an LLM wrapper. It is a controlled runtime around agents. The LLM can propose plans and write reasoning, but the control plane owns identity, queueing, permissions, locks, approvals, execution, audit logs, and installation.
+Helmr is not just an LLM wrapper. It is a controlled runtime around agents. The LLM can propose plans and write reasoning, but the control plane owns dynamic identity assembly, runtime skill discovery, queueing, permissions, locks, approvals, execution, audit logs, and installation.
 
 ---
 
@@ -18,7 +18,7 @@ Helmr is not just an LLM wrapper. It is a controlled runtime around agents. The 
 
 The doctrine is the architectural north star. It is the source of every design decision below, it is mirrored in code at `packages/mastra/src/doctrine.ts`, and it is embedded into every agent's instructions so the system reasons the way it is documented. The full text lives in `docs/doctrine.md`.
 
-H.E.L.M.R. is an anticipatory assistant system. It understands who its user is, understands what the user is doing, predicts what the user needs next, and prepares the next helpful step before the user has to ask.
+H.E.L.M.R. is an anticipatory assistant system and dynamic agent runtime. It understands who its user is, understands what the user is doing, predicts what the user needs next, and prepares the next helpful step before the user has to ask. It does not operate as one fixed assistant; it assembles identity, skills, tools, memory, decision strategy, sub-agents, execution, safety, and verification per task.
 
 Helmr is not a chatbot. Helmr is not a generic command runner. Helmr is not an OpenClaw clone.
 

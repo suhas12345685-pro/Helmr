@@ -432,3 +432,62 @@ test('kill-switch endpoints engage, report, and clear the emergency stop', async
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
+
+test('hatchery exposes marketplace submissions with trust/scan status', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-hatchery-mkt-test-'));
+  try {
+    const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const config = new ConfigFileManager(join(dir, 'config'));
+    await config.init();
+
+    // Seed a submission and a bug through their stores, into the dataDir the app
+    // reads from, then query the read-only marketplace/bug endpoints.
+    const { SubmissionStore, submitCapability } = await import(
+      '../../marketplace-submissions/src/index.js'
+    );
+    const submissions = new SubmissionStore(join(dir, 'marketplace', 'submissions'));
+    await submissions.init();
+    await submitCapability(
+      {
+        files: [{ path: 'main.js', content: 'export const run = () => 1;' }],
+        manifestRaw: {
+          id: 'panel-demo',
+          name: 'Panel Demo',
+          description: 'demo',
+          version: '1.0.0',
+          author: 'tester',
+          healthChecks: ['echo ok'],
+          instructions: 'do it',
+        },
+      },
+      submissions,
+      { source: 'cli:./panel-demo' },
+    );
+
+    const { BugStore, triageBug } = await import('../../bug-triage/src/index.js');
+    const bugs = new BugStore(join(dir, 'bugs'));
+    const report = triageBug({ title: 'broken', description: 'x' }, 'bug-x');
+    await bugs.write({ ...report, status: 'reported', updatedAt: report.createdAt });
+
+    const app = createHatcheryApp(store, new ModelRouter(DEFAULT_ROUTING), config, dir);
+
+    const market = await (await app.request('/api/marketplace')).json();
+    assert.equal(market.items.length, 1);
+    assert.equal(market.items[0].id, 'panel-demo');
+    assert.equal(market.items[0].trustLevel, 'community');
+    assert.equal(market.items[0].scanStatus, 'pass');
+    assert.equal(market.items[0].autoEnabled, false);
+
+    const one = await app.request('/api/marketplace/panel-demo');
+    assert.equal(one.status, 200);
+    const missing = await app.request('/api/marketplace/nope');
+    assert.equal(missing.status, 404);
+
+    const bugList = await (await app.request('/api/bugs')).json();
+    assert.equal(bugList.bugs.length, 1);
+    assert.equal(bugList.bugs[0].id, 'bug-x');
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
