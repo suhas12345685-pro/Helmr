@@ -16,7 +16,15 @@ test('Gateway intake queues a job with explicit development auth override', asyn
     const store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
     await store.init();
     const app = createGatewayApp(store, new ModelRouter(DEFAULT_ROUTING));
-    const res = await app.request('/api/events', { method: 'POST', body: JSON.stringify({ payload: { text: 'hello' }, workspace: { id: 'default', path: dir } }) });
+    const res = await app.request('/api/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        payload: { text: 'hello' },
+        workspace: { id: 'default', path: dir },
+        principal: { id: 'local-owner', type: 'local-user', trustLevel: 'owner' },
+      }),
+    });
     assert.equal(res.status, 202);
     assert.equal((await store.listJobs({ limit: 10 })).length, 1);
   } finally {

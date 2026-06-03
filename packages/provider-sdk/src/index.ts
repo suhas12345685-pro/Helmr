@@ -8,12 +8,12 @@ export const ProviderManifestSchema = z.object({
   authMethods: z.array(ProviderAuthMethodSchema).min(1),
   models: z.array(z.object({ id: z.string().min(1), displayName: z.string().optional(), capabilities: z.array(z.string()).default([]), contextWindow: z.number().int().positive().optional(), cost: z.object({ inputPerMTok: z.number().nonnegative(), outputPerMTok: z.number().nonnegative() }).optional() })).default([]),
   routingHints: z.array(z.string()).default([]),
-  failover: z.object({ retryableErrors: z.array(z.string()).default([]), fallbackProviderIds: z.array(z.string()).default([]) }).default({}),
+  failover: z.object({ retryableErrors: z.array(z.string()).default([]), fallbackProviderIds: z.array(z.string()).default([]) }).prefault({}),
 });
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export interface ProviderRuntime { manifest: ProviderManifest; validate(): Promise<{ ok: boolean; detail: string }>; listModels(): Promise<ProviderManifest['models']> }
 export function defineProvider(manifest: ProviderManifest, runtime: Omit<ProviderRuntime, 'manifest'>): ProviderRuntime { return { manifest: ProviderManifestSchema.parse(manifest), ...runtime }; }
-export const STARTER_PROVIDERS: ProviderManifest[] = [
+export const STARTER_PROVIDERS: z.input<typeof ProviderManifestSchema>[] = [
   { id: 'openai', name: 'OpenAI', authMethods: ['api_key', 'oauth'], models: [{ id: 'gpt-4.1', capabilities: ['text','tool-use'] }] },
   { id: 'anthropic', name: 'Anthropic', authMethods: ['api_key'], models: [{ id: 'claude-sonnet-4-5', capabilities: ['text','tool-use'] }] },
   { id: 'google-gemini', name: 'Google Gemini', authMethods: ['api_key', 'oauth'], models: [{ id: 'gemini-2.5-pro', capabilities: ['text','vision'] }] },

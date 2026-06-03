@@ -10,7 +10,7 @@ Write-Host '2. Invoke create-helmr@latest'
 Write-Host '3. Start Hatchery onboarding through the bootstrapper'
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-  throw 'Node.js is required. Install Node.js 18 or newer first.'
+  throw 'Node.js is required. Install Node.js 22.19.0 or newer first.'
 }
 $ExecCmd = "npm exec"
 $PkgMgr = "npm"

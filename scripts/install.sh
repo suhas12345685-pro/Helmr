@@ -26,7 +26,7 @@ echo "2. Invoke create-helmr@latest"
 echo "3. Start Hatchery onboarding through the bootstrapper"
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js is required. Install Node.js 18 or newer first." >&2
+  echo "Node.js is required. Install Node.js 22.19.0 or newer first." >&2
   exit 1
 fi
 if command -v pnpm >/dev/null 2>&1; then

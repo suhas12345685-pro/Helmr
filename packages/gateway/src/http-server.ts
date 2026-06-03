@@ -10,7 +10,7 @@ import { ChannelConfigStore } from '../../channels/src/channel-config.js';
 import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
-import { evaluateApiAuth, safeTokenEquals } from '../../shared/src/http-auth.js';
+import { evaluateApiAuth, safeTokenEquals, authIsRequired } from '../../shared/src/http-auth.js';
 import { makeErrorMessage, makeGatewayMessage, safeParseGatewayMessage, HELMR_PROTOCOL_VERSION } from '../../protocol/src/index.js';
 import {
   DEFAULT_HEADERS_TIMEOUT_MS,
@@ -252,7 +252,7 @@ async function runSelfTestChecks(): Promise<Array<{ name: string; passed: boolea
 
   // Node version
   const nodeMajor = parseInt(process.versions.node.split('.')[0] ?? '0', 10);
-  checks.push({ name: 'node_version', passed: nodeMajor >= 18, detail: process.versions.node });
+  checks.push({ name: 'node_version', passed: nodeMajor >= 22, detail: process.versions.node });
 
   // Mastra import
   try {
@@ -305,6 +305,13 @@ export async function startGatewayServer(options: GatewayServerOptions = {}): Pr
   wss.on('connection', (ws) => {
     clients.add(ws);
     let authenticated = false;
+    const wsAuthRequired = authIsRequired({
+      nodeEnv: process.env['NODE_ENV'],
+      helmrProduction: process.env['HELMR_PRODUCTION'],
+      requireAuth: process.env['HELMR_REQUIRE_AUTH'],
+      authMode: process.env['HELMR_AUTH_MODE'],
+      bindHost: host ?? process.env['HELMR_BIND_HOST'],
+    }).required;
     ws.send(JSON.stringify(makeGatewayMessage('HELLO', {
       server: 'Helmr Gateway',
       protocolVersion: HELMR_PROTOCOL_VERSION,
@@ -345,8 +352,12 @@ export async function startGatewayServer(options: GatewayServerOptions = {}): Pr
         return;
       }
 
-      if (!authenticated && process.env['HELMR_API_TOKEN']) {
-        ws.send(JSON.stringify(makeErrorMessage('unauthorized', 'Authenticate before using private Gateway streams.', message.id)));
+      if (!authenticated && (wsAuthRequired || process.env['HELMR_API_TOKEN'])) {
+        const detail = wsAuthRequired && !process.env['HELMR_API_TOKEN']?.trim()
+          ? 'Gateway requires authentication but HELMR_API_TOKEN is not configured; private streams are unavailable.'
+          : 'Authenticate before using private Gateway streams.';
+        ws.send(JSON.stringify(makeErrorMessage('unauthorized', detail, message.id)));
+        ws.close(1008, 'unauthorized');
         return;
       }
 

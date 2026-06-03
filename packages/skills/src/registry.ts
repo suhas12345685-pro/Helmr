@@ -85,15 +85,15 @@ export class SkillRegistry {
       return [];
     }
 
-    const loaded = await Promise.all(entries.sort().map(async (entry) => {
+    const loaded = await Promise.all(entries.sort().map(async (entry): Promise<SkillRegistryEntry | null> => {
       if (!entry.endsWith(SKILL_FILE_SUFFIX)) return null;
       const path = join(this.skillsDir, entry);
       try {
         const raw = await readFile(path, 'utf8');
         const manifest = parseSkillManifest(JSON.parse(raw));
-        return { manifest, path, status: manifest.enabled ? 'enabled' : 'disabled' } satisfies SkillRegistryEntry;
+        return { manifest, path, status: manifest.enabled ? 'enabled' : 'disabled' };
       } catch (err) {
-        return { path, status: 'broken', error: err instanceof Error ? err.message : String(err) } satisfies SkillRegistryEntry;
+        return { path, status: 'broken', error: err instanceof Error ? err.message : String(err) };
       }
     }));
     return loaded.filter((entry): entry is SkillRegistryEntry => entry !== null);

@@ -5,6 +5,15 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Production-mode and isolated state-path defaults. Declared before EnvironmentFile so an
+# operator can override them in /etc/helmr/helmr.env, but the service never falls back to
+# development/default-path mode when those keys are omitted from the env file.
+Environment=NODE_ENV=production
+Environment=HELMR_PRODUCTION=true
+Environment=HELMR_DATA_DIR=/var/lib/helmr/data
+Environment=HELMR_CONFIG_DIR=/var/lib/helmr/config
+Environment=HELMR_AUDIT_DIR=/var/lib/helmr/audit
+Environment=HELMR_BACKUP_DIR=/var/lib/helmr/backups
 EnvironmentFile=/etc/helmr/helmr.env
 ExecStart=/usr/bin/node /opt/helmr/dist/src/cli.js start gateway
 Restart=on-failure

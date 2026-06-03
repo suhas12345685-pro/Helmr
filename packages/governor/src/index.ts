@@ -1,3 +1,16 @@
+export {
+  BudgetLedger,
+  BudgetExceededError,
+  InMemoryDailySpendStore,
+  type BudgetLimits,
+  type BudgetCheck,
+  type TrippedLimit,
+  type JobBudgetSnapshot,
+  type DailySpendStore,
+  type BudgetLedgerOptions,
+} from './budget.js';
+export { FileDailySpendStore } from './file-spend-store.js';
+export { loadBudgetLimits, DEFAULT_BUDGET_LIMITS } from './config.js';
 export * from './pricing.js';
 
 export interface GovernorPolicy { killSwitch?: boolean; budgetRemainingUsd: number; approvalRequired?: boolean; allowedTools: string[]; allowedChannels: string[] }

@@ -39,13 +39,13 @@ export function isPublicBindHost(host: string | undefined): boolean {
 }
 
 export function authIsRequired(input: ExposureInput = {}): { required: boolean; reason: string } {
-  if (input.authMode === 'none' && input.helmrProduction !== 'true' && input.nodeEnv !== 'production') {
-    return { required: false, reason: 'explicit development auth override' };
-  }
+  // Fail-closed conditions take precedence over any development auth override so a
+  // stale HELMR_AUTH_MODE=none can never re-open a production / required-auth deployment.
   if (input.helmrProduction === 'true') return { required: true, reason: 'HELMR_PRODUCTION=true' };
   if (input.nodeEnv === 'production') return { required: true, reason: 'NODE_ENV=production' };
   if (input.requireAuth === 'true') return { required: true, reason: 'HELMR_REQUIRE_AUTH=true' };
   if (isPublicBindHost(input.bindHost)) return { required: true, reason: 'Gateway bind host is not loopback' };
+  if (input.authMode === 'none') return { required: false, reason: 'explicit development auth override' };
   return { required: false, reason: 'loopback development mode' };
 }
 

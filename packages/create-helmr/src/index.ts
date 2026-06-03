@@ -90,9 +90,15 @@ export function runRequiredCommand(cmd: string, opts: CommandOptions = {}): stri
   return execSync(cmd, { encoding: 'utf8', stdio: opts.silent ? 'pipe' : 'inherit' }).toString().trim();
 }
 
-function checkNode(): boolean {
-  const major = parseInt(process.versions.node.split('.')[0] ?? '0', 10);
-  return major >= 18;
+// Keep in sync with the "engines.node" floor declared in package.json.
+const MIN_NODE_VERSION = '22.19.0';
+
+function checkNode(version = process.versions.node): boolean {
+  const [major = 0, minor = 0, patch = 0] = version.split('.').map((part) => parseInt(part, 10) || 0);
+  const [reqMajor, reqMinor, reqPatch] = MIN_NODE_VERSION.split('.').map((part) => parseInt(part, 10) || 0);
+  if (major !== reqMajor) return major > reqMajor;
+  if (minor !== reqMinor) return minor > reqMinor;
+  return patch >= reqPatch;
 }
 
 function checkPnpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
@@ -155,16 +161,18 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   deps.log('Checking system requirements...\n');
 
   const nodeOk = checkNode();
-  check('Node.js >= 18', nodeOk, process.versions.node, deps);
+  check(`Node.js >= ${MIN_NODE_VERSION}`, nodeOk, process.versions.node, deps);
   if (!nodeOk) {
-    deps.error('\nNode.js 18 or higher is required. Install from https://nodejs.org');
+    deps.error(`\nNode.js ${MIN_NODE_VERSION} or higher is required. Install from https://nodejs.org`);
     return 1;
   }
 
-  const pnpmOk = checkPnpm(deps);
+  // Prefer npm, which ships with Node and is therefore always present; only probe for
+  // pnpm as a fallback when npm is unavailable.
   const npmOk = checkNpm(deps);
-  const pkgMgrOk = pnpmOk || npmOk;
-  const pkgMgr = pnpmOk ? 'pnpm' : 'npm';
+  const pnpmOk = npmOk ? false : checkPnpm(deps);
+  const pkgMgrOk = npmOk || pnpmOk;
+  const pkgMgr = npmOk ? 'npm' : 'pnpm';
 
   check(`${pkgMgr} available`, pkgMgrOk, undefined, deps);
   if (!pkgMgrOk) {

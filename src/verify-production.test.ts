@@ -25,6 +25,46 @@ test('deployment verification rejects weak tokens and wildcard origins', () => {
   assert.ok(result.failures.some((failure) => failure.includes('wildcard')));
 });
 
+test('deployment verification rejects wildcard origins inside a list', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://app.example.com,https://*.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_DIR: '/var/lib/helmr/audit',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('wildcard')));
+});
+
+test('deployment verification accepts HELMR_AUDIT_DIR in place of HELMR_AUDIT_LOG', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://helmr.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_DIR: '/var/lib/helmr/audit',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, true);
+});
+
+test('deployment verification fails when no audit location is configured', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://helmr.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('HELMR_AUDIT_DIR')));
+});
+
 test('deployment verification passes with explicit hardened settings', () => {
   const result = verifyDeploymentEnv({
     HELMR_PRODUCTION: 'true',
