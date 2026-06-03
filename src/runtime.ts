@@ -477,7 +477,9 @@ async function executeReadPlan(
       log(`Executing receipt: ${toolName} with input ${JSON.stringify(input)}`);
       
       const { executeReceipt } = await import('../packages/hands/src/executor.js');
-      const result = await executeReceipt(receipt, workspacePath);
+      const { StandingPolicyStore } = await import('../packages/config/src/standing-policy.js');
+      const standingPolicy = await new StandingPolicyStore(getHelmrPaths().configDir).load();
+      const result = await executeReceipt(receipt, workspacePath, { standingPolicy });
       
       await store.saveResult(result);
       

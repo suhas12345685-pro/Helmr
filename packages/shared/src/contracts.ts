@@ -143,6 +143,29 @@ export function isApprovalGatedCapability(capability: Capability): boolean {
   return APPROVAL_GATED_CAPABILITIES.has(capability);
 }
 
+/**
+ * Capability direction: inward stays contained by the deployment box; outward
+ * escapes it (network, browser mutations, host changes, registry installs) and
+ * therefore must pass the outward-action gate. The box itself contains inward
+ * work — that is what makes inward, reversible work safe to run autonomously.
+ */
+export type CapabilityDirection = 'inward' | 'outward';
+
+const OUTWARD_CAPABILITIES = new Set<Capability>([
+  'network',
+  'browser',
+  'package_install',
+  'service_install',
+]);
+
+export function capabilityDirection(capability: Capability): CapabilityDirection {
+  return OUTWARD_CAPABILITIES.has(capability) ? 'outward' : 'inward';
+}
+
+export function isOutwardCapability(capability: Capability): boolean {
+  return OUTWARD_CAPABILITIES.has(capability);
+}
+
 export const HelmrPlanSchema = z
   .object({
     id: z.string().min(1),
