@@ -101,10 +101,22 @@ export class WorkspaceLockManager {
 
   clearExpiredLocks(now = new Date()): number {
     let cleared = 0;
-    const nowMs = now.getTime();
+    const nowIso = now.toISOString();
+
     for (const [workspaceId, locks] of this.locks.entries()) {
-      const active = locks.filter((lock) => Date.parse(lock.expiresAt) > nowMs);
+      let hasExpired = false;
+      for (let i = 0; i < locks.length; i++) {
+        if (locks[i].expiresAt <= nowIso) {
+          hasExpired = true;
+          break;
+        }
+      }
+
+      if (!hasExpired) continue;
+
+      const active = locks.filter((lock) => lock.expiresAt > nowIso);
       cleared += locks.length - active.length;
+
       if (active.length === 0) {
         this.locks.delete(workspaceId);
       } else {

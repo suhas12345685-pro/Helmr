@@ -8,3 +8,7 @@
 ## 2025-06-03 - SkillRegistry `get` bottleneck
 **Learning:** `SkillRegistry.get()` was using `list()` which read and parsed the entire skills directory instead of constructing the explicit path using `fileFor(id)` to read just the requested skill. In stateless scenarios checking individual skills often, this produces O(n) file lookups.
 **Action:** When working with stateless file-backed persistence abstractions, ensure single-item fetch methods target files explicitly rather than relying on list-and-filter.
+
+## 2026-06-03 - [Optimize WorkspaceLockManager expiration check]
+**Learning:** Checking for lock expiration inside a tight loop using `Date.parse(lock.expiresAt)` creates unnecessary performance overhead due to date parsing. Furthermore, unconditionally recreating the arrays and setting them on the map leads to high GC pressure and slow execution times when there are many items in the map but few actually expire.
+**Action:** When filtering dates that are already formatted as ISO-8601 strings, convert the current time to an ISO string *once* and compare using string comparison (e.g. `lock.expiresAt <= nowIso`). Secondly, perform a quick check to see if any items need filtering before calling `.filter()` and modifying collections.
