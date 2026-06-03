@@ -104,7 +104,12 @@ export class SkillRegistry {
   }
 
   async get(id: string): Promise<SkillManifest | undefined> {
-    return (await this.list()).find((skill) => skill.id === id);
+    try {
+      const raw = await readFile(this.fileFor(id), 'utf8');
+      return parseSkillManifest(JSON.parse(raw));
+    } catch {
+      return undefined;
+    }
   }
 
   /** Create or update a skill. Preserves the original createdAt on update. */
