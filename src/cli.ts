@@ -35,6 +35,7 @@ Usage:
   helmr kill-switch           Show engaged kill-switch scopes
   helmr rollback <jobId>      Revert a job's workspace changes to its checkpoint
   helmr policy [init]         Show (or initialize) the outward-action standing policy
+  helmr doctor                Health & safety-posture report (budget, kill-switch, audit)
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -207,6 +208,11 @@ async function main(): Promise<void> {
     await checkpointer.discard(ref);
     console.log(`Rolled back job ${jobId}: restored ${summary.restored} file(s), removed ${summary.removed}.`);
     process.exit(0);
+  }
+
+  if (command === 'doctor') {
+    const { runDoctor } = await import('./doctor.js');
+    process.exit(await runDoctor());
   }
 
   if (command === 'policy') {
