@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { evaluateToolReceipt } from '../../cortex/src/policy.js';
+import { gateToolReceipt, type StandingApprovalPolicy } from '../../cortex/src/gate.js';
 import { CredentialBroker } from '../../config/src/credential-broker.js';
+import { isOutwardCapability } from '../../shared/src/index.js';
 import { SkillRegistry, parseSkillManifest, globalSkillsDir } from '../../skills/src/index.js';
 import { getHelmrPaths } from '../../../src/paths.js';
 import { readWorkspaceFile, summarizeWorkspace } from './read-tools.js';
@@ -15,13 +17,34 @@ import {
   npmInstall,
 } from './write-tools.js';
 import { runShellRead, runGitStatus, runGitLog } from './shell-tools.js';
+import { gitPush, httpRequest, messageSend } from './outward-tools.js';
 import type { ToolReceipt, ToolResult } from '../../shared/src/index.js';
 
-export async function executeReceipt(receipt: ToolReceipt, workspacePath: string): Promise<ToolResult> {
+export interface ExecuteReceiptOptions {
+  /** Standing-approval policy for the outward-action gate. */
+  standingPolicy?: StandingApprovalPolicy;
+}
+
+export async function executeReceipt(
+  receipt: ToolReceipt,
+  workspacePath: string,
+  options: ExecuteReceiptOptions = {},
+): Promise<ToolResult> {
   const decision = evaluateToolReceipt(receipt);
 
   if (!decision.allowed) {
     return makeResult(receipt, 'failed', undefined, `denied: ${decision.reasons.join('; ')}`);
+  }
+
+  // Outward-action gate: actions that escape the box must clear a tier. `gated`
+  // requires explicit authority (an approved receipt); `standing` runs under
+  // pre-authorized policy; inward work is `auto`. Approval already satisfied
+  // above lets an operator-approved receipt through even when gated.
+  if (isOutwardCapability(receipt.capability)) {
+    const gate = gateToolReceipt(receipt, options.standingPolicy);
+    if (gate.tier === 'gated' && receipt.approval !== 'approved') {
+      return makeResult(receipt, 'failed', undefined, `gated: ${gate.reason}`);
+    }
   }
 
   try {
@@ -85,6 +108,35 @@ async function dispatch(receipt: ToolReceipt, workspacePath: string): Promise<un
         { dev: input['dev'] === true, exact: input['exact'] === true },
         scopedEnv,
       );
+
+    case 'git_push':
+      return gitPush(
+        workspacePath,
+        {
+          remote: input['remote'] as string | undefined,
+          branch: input['branch'] as string,
+          setUpstream: input['setUpstream'] === true,
+          force: input['force'] === true,
+        },
+        scopedEnv,
+      );
+
+    case 'http_request':
+      return httpRequest({
+        url: input['url'] as string,
+        method: input['method'] as string | undefined,
+        headers: input['headers'] as Record<string, string> | undefined,
+        body: input['body'] as string | undefined,
+        timeoutMs: input['timeoutMs'] as number | undefined,
+      });
+
+    case 'message_send':
+      return messageSend({
+        channel: input['channel'] as string,
+        text: input['text'] as string,
+        webhookUrl: input['webhookUrl'] as string,
+        extra: input['extra'] as Record<string, unknown> | undefined,
+      });
 
     case 'list_skills':
       return new SkillRegistry(globalSkillsDir(getHelmrPaths().dataDir)).list();

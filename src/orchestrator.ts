@@ -34,13 +34,19 @@ export interface OrchestrateSwarmOptions {
   /** Keep agents alive after completion (for inspection). Default false. */
   keepAlive?: boolean;
   onProgress?: (message: string) => void;
+  /**
+   * Kill-switch hook, scoped per agent. Receives the agent id; return true to
+   * halt that agent within one step. The runtime passes a KillSwitch-backed
+   * check so a global or per-agent halt stops the swarm.
+   */
+  shouldHalt?: (agentId: string) => boolean | Promise<boolean>;
 }
 
 export interface SwarmAgentResult {
   agentId: string;
   role: string;
   task: string;
-  status: 'done' | 'failed' | 'max_steps';
+  status: 'done' | 'failed' | 'max_steps' | 'halted';
   result?: unknown;
   error?: string;
 }
@@ -95,6 +101,7 @@ export async function orchestrateSwarm(options: OrchestrateSwarmOptions): Promis
         task: sub.task,
         decider: deciderFor(body, sub.task),
         maxSteps,
+        ...(options.shouldHalt ? { shouldHalt: () => options.shouldHalt!(body.agentId) } : {}),
       });
       if (loop.status === 'done') {
         runtime.completeTask(body.agentId, loop.result);

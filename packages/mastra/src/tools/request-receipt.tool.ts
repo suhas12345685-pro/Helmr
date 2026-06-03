@@ -6,7 +6,13 @@ import { z } from 'zod';
 import { CapabilitySchema, isApprovalGatedCapability, type ToolReceipt } from '../../../shared/src/index.js';
 import { hasStandingApproval, getSkillAutonomy } from '../../../cortex/src/policy.js';
 import { HelmrSQLiteStore } from '../../../memory/src/sqlite-store.js';
+import { StandingPolicyStore } from '../../../config/src/standing-policy.js';
 import { getHelmrPaths } from '../../../../src/paths.js';
+
+/** Load the outward-action standing policy from the config dir (fail-safe default). */
+async function loadStandingPolicy() {
+  return new StandingPolicyStore(getHelmrPaths().configDir).load();
+}
 
 export const requestReceiptTool = createTool({
   id: 'request_receipt',
@@ -47,7 +53,7 @@ export const requestReceiptTool = createTool({
       await store.saveReceipt(receipt);
 
       const { executeReceipt } = await import('../../../hands/src/executor.js');
-      const result = await executeReceipt(receipt, workspacePath);
+      const result = await executeReceipt(receipt, workspacePath, { standingPolicy: await loadStandingPolicy() });
       await store.saveResult(result);
       if (result.status === 'failed') {
         throw new Error(result.error ?? 'Execution failed');
@@ -72,7 +78,7 @@ export const requestReceiptTool = createTool({
         }
 
         const { executeReceipt } = await import('../../../hands/src/executor.js');
-        const result = await executeReceipt(receipt, workspacePath);
+        const result = await executeReceipt(receipt, workspacePath, { standingPolicy: await loadStandingPolicy() });
         await store.saveResult(result);
         if (result.status === 'failed') {
           throw new Error(result.error ?? 'Execution failed');
@@ -107,7 +113,7 @@ export const requestReceiptTool = createTool({
       await store.saveReceipt(receipt);
 
       const { executeReceipt } = await import('../../../hands/src/executor.js');
-      const result = await executeReceipt(receipt, workspacePath);
+      const result = await executeReceipt(receipt, workspacePath, { standingPolicy: await loadStandingPolicy() });
       await store.saveResult(result);
       if (result.status === 'failed') {
         throw new Error(result.error ?? 'Execution failed');

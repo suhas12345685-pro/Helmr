@@ -128,6 +128,12 @@ export class DiscordAdapter implements ChannelAdapter {
     if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
   }
 
+  /** Deliver an outbound message by opening (or reusing) a DM channel. */
+  async send(recipientId: string, text: string): Promise<void> {
+    const channelId = await this.createDmChannel(recipientId);
+    await this.sendDmMessage(channelId, text);
+  }
+
   private async createDmChannel(userId: string): Promise<string> {
     const res = await fetch(`${DISCORD_API}/users/@me/channels`, {
       method: 'POST',

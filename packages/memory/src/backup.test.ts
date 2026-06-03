@@ -136,6 +136,7 @@ test('backup and restore preserves SQLite state, audit chains, and config files'
       payloadText: 'verify backup and restore',
       workspacePath: '/workspace/project',
       finalResult: undefined,
+      replyTo: undefined,
     });
     assert.deepEqual(await restoredStore.getPlan('job_backup'), plan);
     assert.deepEqual(await restoredStore.getReceipt('receipt_backup'), receipt);

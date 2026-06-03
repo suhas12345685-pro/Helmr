@@ -123,7 +123,7 @@ export class IrcAdapter implements ChannelAdapter {
 
   async stop(): Promise<void> {
     if (this.socket) {
-      this.send('QUIT :helmr shutting down');
+      this.sendLine('QUIT :helmr shutting down');
       this.socket.end();
       this.socket = null;
     }
@@ -133,10 +133,10 @@ export class IrcAdapter implements ChannelAdapter {
   private register(): void {
     if (this.password) {
       // Request SASL, authenticate, then complete capability negotiation.
-      this.send('CAP REQ :sasl');
+      this.sendLine('CAP REQ :sasl');
     }
-    this.send(`NICK ${this.nick}`);
-    this.send(`USER ${this.username ?? this.nick} 0 * :Helmr`);
+    this.sendLine(`NICK ${this.nick}`);
+    this.sendLine(`USER ${this.username ?? this.nick} 0 * :Helmr`);
   }
 
   private ingest(raw: string): void {
@@ -155,29 +155,29 @@ export class IrcAdapter implements ChannelAdapter {
 
     switch (message.command) {
       case 'PING':
-        this.send(`PONG :${message.params[0] ?? ''}`);
+        this.sendLine(`PONG :${message.params[0] ?? ''}`);
         return;
       case 'CAP':
         if (message.params[1] === 'ACK' && this.password) {
-          this.send('AUTHENTICATE PLAIN');
+          this.sendLine('AUTHENTICATE PLAIN');
         }
         return;
       case 'AUTHENTICATE':
         if (message.params[0] === '+' && this.password) {
-          this.send(`AUTHENTICATE ${encodeSaslPlain(this.username ?? this.nick, this.password)}`);
+          this.sendLine(`AUTHENTICATE ${encodeSaslPlain(this.username ?? this.nick, this.password)}`);
         }
         return;
       case '903': // SASL authentication successful
-        this.send('CAP END');
+        this.sendLine('CAP END');
         return;
       case '904': // SASL authentication failed
       case '905':
         this.status = 'failed';
-        this.send('CAP END');
+        this.sendLine('CAP END');
         return;
       case '001': // RPL_WELCOME — registration complete
         this.registered = true;
-        if (this.channel) this.send(`JOIN ${this.channel}`);
+        if (this.channel) this.sendLine(`JOIN ${this.channel}`);
         return;
       case 'PRIVMSG':
         await this.handlePrivmsg(message);
@@ -204,11 +204,16 @@ export class IrcAdapter implements ChannelAdapter {
     await this.onEvent(event);
   }
 
-  private sendPrivmsg(target: string, text: string): void {
-    this.send(`PRIVMSG ${target} :${text}`);
+  /** Deliver an outbound message to a nick/channel (the job answer). */
+  async send(recipientId: string, text: string): Promise<void> {
+    this.sendPrivmsg(recipientId, text);
   }
 
-  private send(line: string): void {
+  private sendPrivmsg(target: string, text: string): void {
+    this.sendLine(`PRIVMSG ${target} :${text}`);
+  }
+
+  private sendLine(line: string): void {
     this.socket?.write(`${line}\r\n`);
   }
 }

@@ -54,10 +54,16 @@ export interface RunAgentLoopOptions {
   decider: AgentDecider;
   maxSteps?: number;
   onStep?: (context: BrainContext, action: AgentAction) => void;
+  /**
+   * Kill-switch hook. Checked at the top of every step so an engaged switch
+   * stops this agent within one step. Kept as an injected callback so embodiment
+   * stays free of any scheduler/store dependency.
+   */
+  shouldHalt?: () => boolean | Promise<boolean>;
 }
 
 export interface AgentLoopResult {
-  status: 'done' | 'failed' | 'max_steps';
+  status: 'done' | 'failed' | 'max_steps' | 'halted';
   result?: unknown;
   error?: string;
   steps: number;
@@ -79,6 +85,12 @@ export async function runAgentLoop(
   };
 
   for (let step = 0; step < maxSteps; step++) {
+    if (options.shouldHalt && (await options.shouldHalt())) {
+      body.taskState = { ...body.taskState, status: 'failed', error: 'halted by kill-switch' };
+      body.status = 'idle';
+      return { status: 'halted', steps: step };
+    }
+
     const observation = await body.vision.observe();
     const context: BrainContext = {
       agentId: body.agentId,

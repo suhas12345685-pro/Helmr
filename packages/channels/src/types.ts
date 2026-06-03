@@ -38,6 +38,12 @@ export interface ChannelAdapter {
    * called for a channel that has not completed pairing.
    */
   markPaired(): void;
+  /**
+   * Deliver an outbound message to a recipient on this channel (e.g. a job's
+   * answer back to the originating chat). Optional: adapters without an outbound
+   * transport simply omit it, and the worker logs that the reply was skipped.
+   */
+  send?(recipientId: string, text: string): Promise<void>;
 }
 
 export type EventEmitter = (event: HelmrEvent) => Promise<void>;

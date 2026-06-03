@@ -105,6 +105,37 @@ export async function runSelfTest(env: SelfTestEnv = process.env): Promise<SelfT
     checks.push({ name: 'audit_verifier', passed: false, detail: String(err) });
   }
 
+  // Autonomy substrate: confirm the kill-switch is reachable (durable backing)
+  // and the budget caps are configured — the two preconditions for running
+  // unattended safely.
+  try {
+    const { HelmrSQLiteStore } = await import('../packages/memory/src/sqlite-store.js');
+    const { KillSwitch } = await import('../packages/scheduler/src/kill-switch.js');
+    const store = new HelmrSQLiteStore(':memory:');
+    await store.init();
+    const ks = new KillSwitch({ store });
+    await ks.halt('__self_test__', 'self-test');
+    const halted = await ks.isHalted('__self_test__');
+    await ks.resume('__self_test__');
+    store.close();
+    checks.push({ name: 'kill_switch', passed: halted, detail: 'durable halt/resume reachable' });
+  } catch (err) {
+    checks.push({ name: 'kill_switch', passed: false, detail: String(err) });
+  }
+
+  try {
+    const { loadBudgetLimits } = await import('../packages/governor/src/index.js');
+    const limits = loadBudgetLimits(env);
+    const configured = (limits.usdPerJob ?? 0) > 0 || (limits.usdPerDay ?? 0) > 0;
+    checks.push({
+      name: 'budget_limits',
+      passed: configured,
+      detail: `per-job $${limits.usdPerJob ?? 'off'}, per-day $${limits.usdPerDay ?? 'off'}`,
+    });
+  } catch (err) {
+    checks.push({ name: 'budget_limits', passed: false, detail: String(err) });
+  }
+
   return checks;
 }
 

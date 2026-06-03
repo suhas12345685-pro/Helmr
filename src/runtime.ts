@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { normalizeCliEvent } from '../packages/gateway/src/normalize-event.js';
 import { SqliteWorkspaceLockManager } from '../packages/scheduler/src/sqlite-workspace-lock.js';
+import { KillSwitch, KillSwitchEngagedError } from '../packages/scheduler/src/kill-switch.js';
 import { JsonlAuditLog } from '../packages/memory/src/audit-jsonl.js';
 import { HelmrSQLiteStore } from '../packages/memory/src/sqlite-store.js';
 import type { HelmrStoreJob } from '../packages/memory/src/sqlite-store.js';
@@ -15,6 +16,7 @@ import {
   codingAgentChain,
 } from '../packages/mastra/src/index.js';
 import { BudgetExceededError, type BudgetLedger } from '../packages/governor/src/index.js';
+import { Checkpointer } from '../packages/hands/src/checkpoint.js';
 import { HelmrPlanSchema } from '../packages/shared/src/index.js';
 import type { HelmrJob, HelmrPlan } from '../packages/shared/src/index.js';
 import { getBudgetLedger } from './governor.js';
@@ -46,7 +48,7 @@ export interface RunJobResult {
   jobId: string;
   answer: string;
   plan: HelmrPlan;
-  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'paused_budget';
+  status: 'succeeded' | 'failed' | 'denied' | 'awaiting_approval' | 'paused_budget' | 'paused_killswitch' | 'rolled_back';
   deniedReasons?: string[];
 }
 
@@ -70,6 +72,21 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
   const auditLog = new JsonlAuditLog(paths.auditDir);
   const store = new HelmrSQLiteStore(join(paths.dataDir, 'helmr.db'));
   await store.init();
+
+  // The kill-switch can recall autonomy at any moment. Refuse to even start a new
+  // job while a global halt is engaged.
+  const killSwitch = new KillSwitch({ store });
+  if (await killSwitch.isHalted()) {
+    const state = await killSwitch.state();
+    log(`Kill-switch engaged${state.reason ? `: ${state.reason}` : ''}; not starting job.`);
+    store.close();
+    return {
+      jobId: options.jobId ?? `job_${randomUUID()}`,
+      answer: `Halted: ${state.reason ?? 'kill-switch engaged'}. Run \`helmr resume\` to continue.`,
+      plan: undefined as unknown as HelmrPlan,
+      status: 'paused_killswitch',
+    };
+  }
 
   const locks = await SqliteWorkspaceLockManager.create({ url: `file:${join(paths.dataDir, 'helmr.db')}` });
 
@@ -123,6 +140,10 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
 
   const ledger = getBudgetLedger();
   const guardedGenerate: GuardedGenerate = async (chain, messages, genOptions) => {
+    // Stop within one step if the switch is engaged mid-job.
+    if (await killSwitch.isHalted()) {
+      throw new KillSwitchEngagedError(await killSwitch.state());
+    }
     const pre = await ledger.check(claimed.id, 0);
     if (!pre.allowed) {
       await auditLog.append({
@@ -233,6 +254,7 @@ export async function runJob(options: RunJobOptions): Promise<RunJobResult> {
         workspacePath: event.workspace.path,
         store,
         log,
+        shouldHalt: () => killSwitch.isHalted(),
       });
       answer = swarmResult.answer;
     } else if (requiresCodingAgent) {
@@ -267,8 +289,52 @@ INSTRUCTIONS:
 4. After completing code modifications, you MUST verify that the changes compile cleanly. Use the \`shell_read\` tool to run typechecks or compiler commands (e.g. \`tsc --noEmit\` or \`npm run typecheck\`).
 5. Provide a summary of your actions once all steps are successfully completed.`;
 
-      const result = await guardedGenerate(codingAgentChain(), [{ role: 'user', content: codingPrompt }]);
-      answer = result.text ?? '';
+      // Reversible writes: checkpoint the workspace before the write-capable
+      // coding pass; auto-rollback to it if the pass fails, the budget trips, or
+      // the kill-switch engages mid-write.
+      const checkpointer = new Checkpointer({ rootDir: paths.dataDir });
+      let checkpointRef;
+      try {
+        checkpointRef = await checkpointer.create(claimed.id, event.workspace.path);
+        await auditLog.append({
+          kind: 'checkpoint',
+          jobId: claimed.id,
+          createdAt: new Date().toISOString(),
+          data: checkpointRef,
+        });
+      } catch (ckptErr) {
+        log(`Checkpoint skipped: ${ckptErr instanceof Error ? ckptErr.message : String(ckptErr)}`);
+      }
+
+      try {
+        const result = await guardedGenerate(codingAgentChain(), [{ role: 'user', content: codingPrompt }]);
+        answer = result.text ?? '';
+        if (checkpointRef && !checkpointRef.skipped) await checkpointer.discard(checkpointRef);
+      } catch (writeErr) {
+        // An approval pause is not a failure — keep the checkpoint and let the
+        // outer handler park the job; resuming will re-execute.
+        if (writeErr instanceof Error && writeErr.message.includes('Awaiting human approval')) throw writeErr;
+        if (checkpointRef && !checkpointRef.skipped) {
+          const cause = writeErr instanceof Error ? writeErr.message : String(writeErr);
+          const summary = await checkpointer.rollback(checkpointRef);
+          await auditLog.append({
+            kind: 'rollback',
+            jobId: claimed.id,
+            createdAt: new Date().toISOString(),
+            data: { ...summary, cause },
+          });
+          await checkpointer.discard(checkpointRef);
+          await store.updateJobStatus(claimed.id, 'rolled_back', `auto-rollback after ${cause}`);
+          log(`Rolled back ${summary.restored} file(s), removed ${summary.removed} after: ${cause}`);
+          return {
+            jobId: claimed.id,
+            answer: `Changes were rolled back to a clean checkpoint after: ${cause}`,
+            plan: plan!,
+            status: 'rolled_back',
+          };
+        }
+        throw writeErr;
+      }
     } else {
       log('Executing approved steps...');
       answer = await executeReadPlan(plan, event.workspace.path, text, log, store, guardedGenerate);
@@ -291,11 +357,20 @@ INSTRUCTIONS:
     };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    if (err instanceof BudgetExceededError) {
+    if (err instanceof KillSwitchEngagedError) {
+      log(`Kill-switch engaged (${err.scope}); pausing job.`);
+      await store.updateJobStatus(claimed.id, 'paused_killswitch', err.message);
+      return {
+        jobId: claimed.id,
+        answer: `Halted: ${err.message}. Run \`helmr resume\` to continue.`,
+        plan: plan!,
+        status: 'paused_killswitch',
+      };
+    } else if (err instanceof BudgetExceededError) {
       // A tripped budget pauses the job (resumable once the Operator raises the
       // cap) rather than failing it — failure would auto-requeue and re-trip.
       log(`Budget limit reached (${err.trippedLimit}); pausing job.`);
-      await store.updateJobStatus(claimed.id, 'awaiting_approval', err.message);
+      await store.updateJobStatus(claimed.id, 'paused_budget', err.message);
       return {
         jobId: claimed.id,
         answer: `Paused: ${err.message}. Raise the budget cap and re-run to resume.`,
@@ -402,7 +477,9 @@ async function executeReadPlan(
       log(`Executing receipt: ${toolName} with input ${JSON.stringify(input)}`);
       
       const { executeReceipt } = await import('../packages/hands/src/executor.js');
-      const result = await executeReceipt(receipt, workspacePath);
+      const { StandingPolicyStore } = await import('../packages/config/src/standing-policy.js');
+      const standingPolicy = await new StandingPolicyStore(getHelmrPaths().configDir).load();
+      const result = await executeReceipt(receipt, workspacePath, { standingPolicy });
       
       await store.saveResult(result);
       

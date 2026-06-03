@@ -75,6 +75,12 @@ export const HelmrJobSchema = z
       'succeeded',
       'failed',
       'cancelled',
+      // Recoverable pauses (autonomy substrate): a tripped budget or an engaged
+      // kill-switch parks a job here; it resumes when the Operator clears the
+      // condition. `rolled_back` marks a job whose in-flight writes were reverted.
+      'paused_budget',
+      'paused_killswitch',
+      'rolled_back',
     ]),
     lane: z.enum(['interactive', 'background', 'maintenance']),
     priority: z.number().int().min(0).max(100),
@@ -135,6 +141,29 @@ const APPROVAL_GATED_CAPABILITIES = new Set<Capability>([
 
 export function isApprovalGatedCapability(capability: Capability): boolean {
   return APPROVAL_GATED_CAPABILITIES.has(capability);
+}
+
+/**
+ * Capability direction: inward stays contained by the deployment box; outward
+ * escapes it (network, browser mutations, host changes, registry installs) and
+ * therefore must pass the outward-action gate. The box itself contains inward
+ * work — that is what makes inward, reversible work safe to run autonomously.
+ */
+export type CapabilityDirection = 'inward' | 'outward';
+
+const OUTWARD_CAPABILITIES = new Set<Capability>([
+  'network',
+  'browser',
+  'package_install',
+  'service_install',
+]);
+
+export function capabilityDirection(capability: Capability): CapabilityDirection {
+  return OUTWARD_CAPABILITIES.has(capability) ? 'outward' : 'inward';
+}
+
+export function isOutwardCapability(capability: Capability): boolean {
+  return OUTWARD_CAPABILITIES.has(capability);
 }
 
 export const HelmrPlanSchema = z

@@ -30,6 +30,12 @@ Usage:
   helmr start hatchery        Start the Hatchery dashboard and UI
   helmr start all             Start Gateway and Hatchery daemons
   helmr stop                  Stop all background daemons
+  helmr halt [--agent <id>]   Engage the kill-switch (global, or one agent)
+  helmr resume [--agent <id>] Clear the kill-switch
+  helmr kill-switch           Show engaged kill-switch scopes
+  helmr rollback <jobId>      Revert a job's workspace changes to its checkpoint
+  helmr policy [init]         Show (or initialize) the outward-action standing policy
+  helmr doctor                Health & safety-posture report (budget, kill-switch, audit)
   helmr channels add          Add a new communication channel
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -135,6 +141,16 @@ async function runRequest(
   }
 }
 
+async function openKillSwitch(): Promise<{ killSwitch: import('../packages/scheduler/src/kill-switch.js').KillSwitch; store: import('../packages/memory/src/sqlite-store.js').HelmrSQLiteStore }> {
+  const { join } = await import('node:path');
+  const { HelmrSQLiteStore } = await import('../packages/memory/src/sqlite-store.js');
+  const { KillSwitch } = await import('../packages/scheduler/src/kill-switch.js');
+  const paths = getHelmrPaths();
+  const store = new HelmrSQLiteStore(join(paths.dataDir, 'helmr.db'));
+  await store.init();
+  return { killSwitch: new KillSwitch({ store }), store };
+}
+
 async function main(): Promise<void> {
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printUsage();
@@ -169,6 +185,89 @@ async function main(): Promise<void> {
     printSelfTestResults(results);
     const allPassed = results.every((r) => r.passed);
     process.exit(allPassed ? 0 : 1);
+  }
+
+  if (command === 'rollback') {
+    const jobId = subCommand;
+    if (!jobId) {
+      console.error('Usage: helmr rollback <jobId>');
+      process.exit(1);
+    }
+    const { Checkpointer } = await import('../packages/hands/src/checkpoint.js');
+    const checkpointer = new Checkpointer({ rootDir: getHelmrPaths().dataDir });
+    const ref = await checkpointer.loadLatest(jobId);
+    if (!ref) {
+      console.error(`No recoverable checkpoint found for job ${jobId}.`);
+      process.exit(1);
+    }
+    if (ref.skipped) {
+      console.error(`Checkpoint for job ${jobId} was skipped (${ref.reason ?? 'too large'}); cannot roll back.`);
+      process.exit(1);
+    }
+    const summary = await checkpointer.rollback(ref);
+    await checkpointer.discard(ref);
+    console.log(`Rolled back job ${jobId}: restored ${summary.restored} file(s), removed ${summary.removed}.`);
+    process.exit(0);
+  }
+
+  if (command === 'doctor') {
+    const { runDoctor } = await import('./doctor.js');
+    process.exit(await runDoctor());
+  }
+
+  if (command === 'policy') {
+    const { StandingPolicyStore } = await import('../packages/config/src/standing-policy.js');
+    const store = new StandingPolicyStore(getHelmrPaths().configDir);
+    if (subCommand === 'init') {
+      await store.init();
+      console.log('Standing-approval policy initialized at config/standing-policy.json');
+      process.exit(0);
+    }
+    // Default: show the effective outward-action policy.
+    const policy = await store.load();
+    const rules = Object.entries(policy.rules);
+    console.log('Outward-action standing policy:');
+    if (rules.length === 0) {
+      console.log('  (none) — every outward action is gated (fail-safe default).');
+    } else {
+      for (const [capability, rule] of rules) {
+        console.log(`  ${capability}: ${JSON.stringify(rule)}`);
+      }
+    }
+    console.log('\nInward actions (workspace/shell/git writes) run automatically; they are');
+    console.log('reversible via checkpoints and bounded by the budget ledger.');
+    process.exit(0);
+  }
+
+  if (command === 'halt' || command === 'resume' || command === 'kill-switch') {
+    const ks = await openKillSwitch();
+    try {
+      const agentFlagIndex = args.indexOf('--agent');
+      const scope = agentFlagIndex >= 0 ? args[agentFlagIndex + 1] : undefined;
+
+      if (command === 'kill-switch') {
+        const engaged = await ks.killSwitch.listHalted();
+        if (engaged.length === 0) {
+          console.log('Kill-switch: clear (no halts engaged).');
+        } else {
+          console.log('Kill-switch ENGAGED for:');
+          for (const f of engaged) console.log(`  - ${f.scope}${f.reason ? ` — ${f.reason}` : ''} (${f.updatedAt})`);
+        }
+        process.exit(0);
+      }
+
+      if (command === 'halt') {
+        const reason = args.slice(1).filter((a) => a !== '--agent' && a !== scope).join(' ') || undefined;
+        await ks.killSwitch.halt(scope, reason);
+        console.log(`Halted ${scope ? `agent ${scope}` : 'ALL work (global)'}.${reason ? ` Reason: ${reason}` : ''}`);
+      } else {
+        await ks.killSwitch.resume(scope);
+        console.log(`Resumed ${scope ? `agent ${scope}` : 'ALL work (global)'}.`);
+      }
+      process.exit(0);
+    } finally {
+      ks.store.close();
+    }
   }
 
   if (command === 'start') {

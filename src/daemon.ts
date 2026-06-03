@@ -162,8 +162,13 @@ export async function startDaemon(
               workspacePath: targetJob.workspacePath,
               jobId: targetJob.id,
               onProgress: (msg) => log(`[Worker][${targetJob.id}] ${msg}`),
-            }).then((res) => {
+            }).then(async (res) => {
               log(`[Worker][${targetJob.id}] Completed with status: ${res.status}`);
+              // Close the loop: deliver the answer back to the originating chat.
+              if (targetJob.replyTo && res.answer && channels) {
+                const delivered = await channels.deliver(targetJob.replyTo, res.answer);
+                log(`[Worker][${targetJob.id}] Reply ${delivered ? 'delivered' : 'not delivered'} to ${targetJob.replyTo}`);
+              }
             }).catch((err) => {
               log(`[Worker][${targetJob.id}] Execution failed: ${err instanceof Error ? err.message : String(err)}`);
             });
@@ -196,6 +201,8 @@ export async function startDaemon(
           updatedAt: now,
           payloadText: event.payload.text,
           workspacePath: event.workspace.path,
+          // The principal id is "provider:recipientId" — the reply address.
+          replyTo: event.principal.id,
         });
         log(`[Channels] Queued job from ${event.principal.id}`);
       };
