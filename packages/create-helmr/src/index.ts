@@ -66,6 +66,11 @@ function checkNode(): boolean {
   return major >= 18;
 }
 
+function checkPnpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
+  const out = deps.runOptionalCommand('pnpm --version', { silent: true });
+  return out.length > 0;
+}
+
 function checkNpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
   const out = deps.runOptionalCommand('npm --version', { silent: true });
   return out.length > 0;
@@ -127,10 +132,14 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
     return 1;
   }
 
+  const pnpmOk = checkPnpm(deps);
   const npmOk = checkNpm(deps);
-  check('npm available', npmOk, undefined, deps);
-  if (!npmOk) {
-    deps.error('\nnpm not found. Install Node.js from https://nodejs.org');
+  const pkgMgrOk = pnpmOk || npmOk;
+  const pkgMgr = pnpmOk ? 'pnpm' : 'npm';
+
+  check(`${pkgMgr} available`, pkgMgrOk, undefined, deps);
+  if (!pkgMgrOk) {
+    deps.error('\nnpm or pnpm not found. Install Node.js/npm or pnpm first.');
     return 1;
   }
 
@@ -158,17 +167,18 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   }
 
   deps.log('\nInstalling Helmr CLI...');
+  const installCmd = pkgMgr === 'pnpm' ? 'pnpm add -g helmr' : 'npm install -g helmr';
   if (options.dryRun) {
-    check('would install helmr CLI globally', true, 'npm install -g helmr', deps);
+    check('would install helmr CLI globally', true, installCmd, deps);
   } else {
     try {
-      deps.runRequiredCommand('npm install -g helmr');
+      deps.runRequiredCommand(installCmd);
       check('helmr CLI installed globally', true, undefined, deps);
     } catch (err) {
-      check('helmr CLI install', false, 'run: npm install -g helmr', deps);
+      check('helmr CLI install', false, `run: ${installCmd}`, deps);
       const detail = err instanceof Error ? err.message : String(err);
       deps.error(`\nUnable to install the Helmr CLI automatically: ${detail}`);
-      deps.error('Install the CLI with `npm install -g helmr`, then rerun `create-helmr`.');
+      deps.error(`Install the CLI with \`${installCmd}\`, then rerun \`create-helmr\`.`);
       return 1;
     }
   }
