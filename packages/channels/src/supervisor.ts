@@ -79,6 +79,33 @@ export class ChannelSupervisor {
     return this.adapters;
   }
 
+  /**
+   * Deliver an outbound reply to its originating channel. `replyTo` is the
+   * job's "provider:recipientId" address (the event principal id). Returns
+   * true when an active adapter for that provider delivered the message.
+   */
+  async deliver(replyTo: string, text: string): Promise<boolean> {
+    const sep = replyTo.indexOf(':');
+    if (sep <= 0) return false;
+    const provider = replyTo.slice(0, sep);
+    const recipientId = replyTo.slice(sep + 1);
+
+    const adapter = this.adapters.find(
+      (a) => a.kind === provider && a.getStatus() === 'active' && typeof a.send === 'function',
+    );
+    if (!adapter?.send) {
+      this.log(`no active "${provider}" adapter with outbound delivery for reply`);
+      return false;
+    }
+    try {
+      await adapter.send(recipientId, text);
+      return true;
+    } catch (err) {
+      this.log(`reply delivery to ${provider} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
   private record(adapter: ChannelAdapter, started: boolean, reason?: string): void {
     this.results.push({ kind: adapter.kind, name: adapter.name, started, reason });
   }

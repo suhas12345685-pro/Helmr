@@ -215,3 +215,37 @@ test('control flags persist and toggle (durable kill-switch backing)', async () 
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
 });
+
+test('store round-trips the channel reply address (reply_to) for outbound delivery', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'helmr-store-'));
+  let store: HelmrSQLiteStore | undefined;
+  try {
+    store = new HelmrSQLiteStore(join(dir, 'helmr.db'));
+    await store.init();
+    const now = '2026-06-03T12:00:00.000Z';
+    await store.upsertJob({
+      id: 'job_reply',
+      eventId: 'evt_reply',
+      workspaceId: 'default',
+      status: 'queued',
+      lane: 'interactive',
+      priority: 50,
+      attempts: 0,
+      maxAttempts: 3,
+      createdAt: now,
+      updatedAt: now,
+      payloadText: 'hello',
+      workspacePath: '/tmp/ws',
+      replyTo: 'telegram:98765',
+    });
+
+    const job = await store.getJob('job_reply');
+    assert.equal(job?.replyTo, 'telegram:98765');
+
+    const listed = await store.listJobs({ status: 'queued' });
+    assert.equal(listed.find((j) => j.id === 'job_reply')?.replyTo, 'telegram:98765');
+  } finally {
+    (store as unknown as { db?: { close: () => void } } | undefined)?.db?.close();
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});

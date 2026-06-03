@@ -13,7 +13,7 @@ import type {
   SwarmTaskStatus,
 } from '../../shared/src/index.js';
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export interface JobRow {
   id: string;
@@ -31,6 +31,7 @@ export interface JobRow {
   payload_text: string | null;
   workspace_path: string | null;
   final_result: string | null;
+  reply_to: string | null;
 }
 
 export type HelmrStoreJob = HelmrJob & {
@@ -38,6 +39,7 @@ export type HelmrStoreJob = HelmrJob & {
   payloadText?: string;
   workspacePath?: string;
   finalResult?: string;
+  replyTo?: string;
 };
 
 export class HelmrSQLiteStore {
@@ -162,6 +164,9 @@ export class HelmrSQLiteStore {
     `);
 
     await this.ensureColumn('jobs', 'final_result', 'TEXT');
+    // v5: the reply address for channel-originated jobs ("provider:recipientId"),
+    // so the worker can deliver the answer back to the originating chat.
+    await this.ensureColumn('jobs', 'reply_to', 'TEXT');
     await this.recordSchemaVersion(CURRENT_SCHEMA_VERSION);
   }
 
@@ -267,14 +272,15 @@ export class HelmrSQLiteStore {
   async upsertJob(job: HelmrStoreJob): Promise<void> {
     await this.client.execute({
       sql: `INSERT OR REPLACE INTO jobs
-        (id,event_id,workspace_id,status,lane,priority,attempts,max_attempts,created_at,updated_at,lease_until,last_error,payload_text,workspace_path,final_result)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (id,event_id,workspace_id,status,lane,priority,attempts,max_attempts,created_at,updated_at,lease_until,last_error,payload_text,workspace_path,final_result,reply_to)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       args: [
         job.id, job.eventId, job.workspaceId, job.status, job.lane,
         job.priority, job.attempts, job.maxAttempts,
         job.createdAt, job.updatedAt,
         job.leaseUntil ?? null, job.lastError ?? null,
         job.payloadText ?? null, job.workspacePath ?? null, job.finalResult ?? null,
+        job.replyTo ?? null,
       ],
     });
   }
@@ -687,5 +693,6 @@ function rowToJob(row: JobRow): HelmrStoreJob {
     payloadText: row.payload_text ?? undefined,
     workspacePath: row.workspace_path ?? undefined,
     finalResult: row.final_result ?? undefined,
+    replyTo: row.reply_to ?? undefined,
   };
 }

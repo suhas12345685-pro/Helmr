@@ -122,6 +122,11 @@ export class SlackAdapter implements ChannelAdapter {
     return data.url;
   }
 
+  /** Deliver an outbound message to a Slack channel/DM (the job answer). */
+  async send(recipientId: string, text: string): Promise<void> {
+    await this.postMessage(recipientId, text);
+  }
+
   private async postMessage(channel: string, text: string): Promise<void> {
     const res = await fetch(`${SLACK_API}/chat.postMessage`, {
       method: 'POST',

@@ -116,3 +116,47 @@ test('factory ignores unpaired channels even with credentials present', () => {
   });
   assert.deepEqual(adapters, []);
 });
+
+test('supervisor.deliver routes a reply to the matching active adapter', async () => {
+  const sent: Array<{ kind: string; to: string; text: string }> = [];
+  const withSend = (kind: string, status: ChannelStatus): ChannelAdapter => {
+    const a = fakeAdapter(kind, status) as ChannelAdapter & { status: ChannelStatus };
+    a.send = async (recipientId: string, text: string) => { sent.push({ kind, to: recipientId, text }); };
+    return a;
+  };
+
+  const supervisor = new ChannelSupervisor({
+    enqueue: async () => {},
+    loadAdapters: async () => [withSend('telegram', 'active'), withSend('discord', 'active')],
+  });
+  await supervisor.start();
+
+  const delivered = await supervisor.deliver('telegram:12345', 'ahoy');
+  assert.equal(delivered, true);
+  assert.deepEqual(sent, [{ kind: 'telegram', to: '12345', text: 'ahoy' }]);
+});
+
+test('supervisor.deliver returns false when no active adapter can deliver', async () => {
+  const supervisor = new ChannelSupervisor({
+    enqueue: async () => {},
+    loadAdapters: async () => [fakeAdapter('telegram', 'credentials_entered')],
+  });
+  await supervisor.start();
+
+  // Inactive adapter, recipient id with a colon (handles ids containing colons).
+  assert.equal(await supervisor.deliver('telegram:abc:def', 'hi'), false);
+  // Malformed reply address.
+  assert.equal(await supervisor.deliver('no-separator', 'hi'), false);
+});
+
+test('supervisor.deliver swallows a failing adapter send and reports false', async () => {
+  const a = fakeAdapter('slack', 'active') as ChannelAdapter & { status: ChannelStatus };
+  a.send = async () => { throw new Error('rate limited'); };
+  const supervisor = new ChannelSupervisor({
+    enqueue: async () => {},
+    loadAdapters: async () => [a],
+  });
+  await supervisor.start();
+
+  assert.equal(await supervisor.deliver('slack:C123', 'hi'), false);
+});

@@ -118,6 +118,11 @@ export class TelegramAdapter implements ChannelAdapter {
     return (data.result as TelegramUpdate[]) ?? [];
   }
 
+  /** Deliver an outbound message to a chat (the job answer). */
+  async send(recipientId: string, text: string): Promise<void> {
+    await this.sendMessage(recipientId, text);
+  }
+
   private async sendMessage(chatId: string, text: string): Promise<void> {
     const url = `https://api.telegram.org/bot${this.token}/sendMessage`;
     const res = await fetch(url, {
