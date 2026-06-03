@@ -10,6 +10,7 @@ Helmr supports:
 - **Proactive agency** — it prepares the next step before being asked.
 - **Coordinated execution** — it can spin up many agents that work as a team.
 - **Multi-agent parallel work** — each agent gets its own isolated body (eyes, keyboard, mouse, workspace), never the user's real machine.
+- **Dynamic runtime composition** — identity, skills, tools, memory context, strategy, sub-agents, execution, safety, and verification are assembled per task instead of frozen into one static assistant.
 
 Helmr must **know who its user is**. The system has a real user-identity concept (`IDENTITY.md`, memory, the identity matrix, and the constitution in `soul.md`) — it does not behave like a generic, stateless bot.
 
@@ -17,9 +18,9 @@ This anticipatory, user-aware foundation is the thing everything else is built o
 
 ---
 
-H.E.L.M.R. is an anticipatory assistant system.
+H.E.L.M.R. is an anticipatory assistant system and a dynamic agent runtime.
 
-It is designed to understand who its user is, understand what the user is doing, predict what the user needs next, and prepare the next helpful step before the user has to ask.
+It is designed to understand who its user is, understand what the user is doing, predict what the user needs next, and prepare the next helpful step before the user has to ask. It does not operate as one fixed assistant: for every task, Helmr assembles the right identity, skills, tools, memory context, decision strategy, sub-agents, execution method, safety policy, and verification process. Skills are discovered and loaded at runtime rather than hardcoded, so Helmr can morph into the operational form the situation requires.
 
 Helmr is not a chatbot.
 Helmr is not a generic command runner.

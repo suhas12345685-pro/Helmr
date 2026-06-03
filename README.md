@@ -1,6 +1,11 @@
 # Helmr
 
-Helmr is a self-hosted, TypeScript-first AI orchestration system.
+Helmr is a self-hosted, TypeScript-first dynamic agent runtime. It does not
+operate as one fixed assistant: for every task, Helmr assembles the right
+identity, skills, tools, memory context, decision strategy, sub-agents, execution
+method, safety policy, and verification process. Skills are discovered and loaded
+at runtime rather than hardcoded, so the agent can morph into the operational form
+the situation requires.
 
 ## Install Helmr
 
