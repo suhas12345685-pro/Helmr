@@ -8,3 +8,6 @@
 ## 2025-06-03 - SkillRegistry `get` bottleneck
 **Learning:** `SkillRegistry.get()` was using `list()` which read and parsed the entire skills directory instead of constructing the explicit path using `fileFor(id)` to read just the requested skill. In stateless scenarios checking individual skills often, this produces O(n) file lookups.
 **Action:** When working with stateless file-backed persistence abstractions, ensure single-item fetch methods target files explicitly rather than relying on list-and-filter.
+## 2026-06-03 - [Optimize Init Loop in config-files.ts]
+**Learning:** Sequential async operations in loops that process independent items (like config templates) can be optimized by mapping them to promises and using `Promise.all()`.
+**Action:** Always identify if elements in an asynchronous loop share state or write to the same resource. If they are independent, rewrite the loop with `Promise.all` to achieve concurrency and improve throughput.
