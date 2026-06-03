@@ -1,0 +1,32 @@
+{
+  "id": "workspace.read",
+  "name": "Workspace Reader",
+  "description": "Read workspace files without mutation",
+  "version": "0.1.0",
+  "kind": "skill",
+  "source": "builtin",
+  "enabled": true,
+  "triggers": [
+    "read workspace",
+    "inspect"
+  ],
+  "instructions": "Read workspace files without mutation",
+  "permissions": [
+    "workspace:read"
+  ],
+  "tools": [],
+  "inputSchemas": {},
+  "outputSchemas": {},
+  "requiredSecrets": [],
+  "healthCheck": {},
+  "runtimeConstraints": {
+    "network": "approval",
+    "requiresWorkspace": false
+  },
+  "riskLevel": "low",
+  "approvalRequirements": [],
+  "examples": [],
+  "tests": [],
+  "createdAt": "2026-06-03T00:00:00.000Z",
+  "updatedAt": "2026-06-03T00:00:00.000Z"
+}

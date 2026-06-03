@@ -10,6 +10,35 @@ const helmrDir = join(homedir(), '.helmr');
 const configDir = join(helmrDir, 'config');
 const dataDir = join(helmrDir, 'data');
 
+export const ONBOARDING_PROVIDERS = [
+  { id: 'openai', name: 'OpenAI', authMethods: ['api_key', 'oauth'] },
+  { id: 'anthropic', name: 'Anthropic', authMethods: ['api_key'] },
+  { id: 'google-gemini', name: 'Google Gemini', authMethods: ['api_key', 'oauth'] },
+  { id: 'groq', name: 'Groq', authMethods: ['api_key'] },
+  { id: 'perplexity-sonar', name: 'Perplexity Sonar', authMethods: ['api_key'] },
+  { id: 'xai-grok', name: 'xAI/Grok', authMethods: ['api_key'] },
+  { id: 'deepseek', name: 'DeepSeek', authMethods: ['api_key'] },
+  { id: 'kimi', name: 'Kimi', authMethods: ['api_key'] },
+  { id: 'ollama', name: 'Ollama', authMethods: ['local'] },
+  { id: 'lm-studio', name: 'LM Studio', authMethods: ['local'] },
+] as const;
+
+export const HATCHERY_ONBOARDING_FLOW = [
+  'choose mode: Personal or Enterprise',
+  'choose LLM provider and supported auth method',
+  'validate connection',
+  'choose model',
+  'choose channels',
+  'choose skills',
+  'choose autonomy level: manual, approval-gated, semi-autonomous, scheduled, enterprise controlled',
+  'configure per-job, daily, monthly and token budgets',
+  'configure local SQLite memory retention and export/delete options',
+  'finish Hatchery',
+] as const;
+
+export const PERSONAL_GREETING = 'Hey, I came online. Set my vibe, who I am, and who you are.';
+export const ENTERPRISE_GREETING = 'Hey, I came online. Tell me my role, my tasks, my channel, company name, escalation rules, and approval policy.';
+
 type CommandOptions = { silent?: boolean };
 type SpawnFn = typeof nodeSpawn;
 
@@ -223,7 +252,9 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   }
 
   deps.log('\nNext command after onboarding:');
-  deps.log('  helmr ask "summarize this workspace"\n');
+  deps.log('  helmr ask "summarize this workspace"');
+  deps.log(`Personal: ${PERSONAL_GREETING}`);
+  deps.log(`Enterprise: ${ENTERPRISE_GREETING}\n`);
 
   return 0;
 

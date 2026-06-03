@@ -25,6 +25,7 @@ Usage:
   helmr onboard               Onboard and set up a new Helmr installation
   helmr status                Show runtime status
   helmr self-test             Run system health checks
+  helmr security audit        Run fail-closed exposure and secret checks
   helmr start                 Start Gateway and Hatchery daemons
   helmr start gateway         Start the Gateway daemon
   helmr start hatchery        Start the Hatchery dashboard and UI
@@ -37,6 +38,13 @@ Usage:
   helmr policy [init]         Show (or initialize) the outward-action standing policy
   helmr doctor                Health & safety-posture report (budget, kill-switch, audit)
   helmr channels add          Add a new communication channel
+  helmr skills list           List dynamically loaded skills
+  helmr skills inspect <id>   Inspect a skill manifest
+  helmr skills enable <id>    Enable a skill
+  helmr skills disable <id>   Disable a skill
+  helmr skills doctor         Validate skill health
+  helmr skills validate <path> Validate a skill manifest
+  helmr backup <dir>          Copy local Helmr state into a backup directory
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
 
@@ -168,6 +176,68 @@ async function main(): Promise<void> {
       process.exit(code ?? 0);
     });
     return;
+  }
+
+
+  if (command === 'security' && subCommand === 'audit') {
+    const { runSecurityAudit, formatSecurityAudit } = await import('../packages/security/src/index.js');
+    const checks = await runSecurityAudit();
+    console.log(formatSecurityAudit(checks));
+    process.exit(checks.some((check) => !check.passed && check.severity === 'critical') ? 1 : 0);
+  }
+
+  if (command === 'skills') {
+    const { readFile } = await import('node:fs/promises');
+    const { SkillRegistry, globalSkillsDir, parseSkillManifest } = await import('../packages/skills/src/index.js');
+    const registry = new SkillRegistry(globalSkillsDir(getHelmrPaths().dataDir));
+    await registry.init();
+    if (subCommand === 'list' || !subCommand) {
+      const entries = await registry.entries();
+      if (entries.length === 0) console.log('No user skills installed. Built-in starter skills are packaged in packages/skills/builtin.');
+      for (const entry of entries) console.log(`${entry.status.padEnd(8)} ${entry.manifest?.id ?? entry.path} ${entry.error ? `- ${entry.error}` : ''}`);
+      process.exit(0);
+    }
+    if (subCommand === 'inspect') {
+      const id = args[2];
+      if (!id) { console.error('Usage: helmr skills inspect <id>'); process.exit(1); }
+      const skill = await registry.get(id);
+      if (!skill) { console.error(`Skill not found: ${id}`); process.exit(1); }
+      console.log(JSON.stringify(skill, null, 2));
+      process.exit(0);
+    }
+    if (subCommand === 'enable' || subCommand === 'disable') {
+      const id = args[2];
+      if (!id) { console.error(`Usage: helmr skills ${subCommand} <id>`); process.exit(1); }
+      const updated = await registry.setEnabled(id, subCommand === 'enable');
+      if (!updated) { console.error(`Skill not found: ${id}`); process.exit(1); }
+      console.log(`${updated.enabled ? 'Enabled' : 'Disabled'} ${updated.id}`);
+      process.exit(0);
+    }
+    if (subCommand === 'doctor') {
+      const health = await registry.health();
+      for (const item of health) console.log(`${item.ok ? 'PASS' : 'FAIL'} ${item.id}: ${item.detail}`);
+      process.exit(health.every((item) => item.ok) ? 0 : 1);
+    }
+    if (subCommand === 'validate') {
+      const file = args[2];
+      if (!file) { console.error('Usage: helmr skills validate <path>'); process.exit(1); }
+      parseSkillManifest(JSON.parse(await readFile(resolve(file), 'utf8')));
+      console.log(`Valid skill manifest: ${file}`);
+      process.exit(0);
+    }
+    console.error(`Unknown skills subcommand: ${subCommand}`);
+    process.exit(1);
+  }
+
+  if (command === 'backup') {
+    const { cp, mkdir } = await import('node:fs/promises');
+    const target = subCommand;
+    if (!target) { console.error('Usage: helmr backup <dir>'); process.exit(1); }
+    await mkdir(resolve(target), { recursive: true });
+    await cp(getHelmrPaths().dataDir, resolve(target, 'data'), { recursive: true, force: true }).catch(() => undefined);
+    await cp(getHelmrPaths().configDir, resolve(target, 'config'), { recursive: true, force: true }).catch(() => undefined);
+    console.log(`Backup written to ${resolve(target)}`);
+    process.exit(0);
   }
 
   if (command === 'status') {

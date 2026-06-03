@@ -1,0 +1,34 @@
+{
+  "id": "scheduler.cron",
+  "name": "Scheduled Work",
+  "description": "Create approval-gated scheduled tasks",
+  "version": "0.1.0",
+  "kind": "skill",
+  "source": "builtin",
+  "enabled": true,
+  "triggers": [
+    "schedule",
+    "cron"
+  ],
+  "instructions": "Create approval-gated scheduled tasks",
+  "permissions": [
+    "schedule:write"
+  ],
+  "tools": [],
+  "inputSchemas": {},
+  "outputSchemas": {},
+  "requiredSecrets": [],
+  "healthCheck": {},
+  "runtimeConstraints": {
+    "network": "approval",
+    "requiresWorkspace": false
+  },
+  "riskLevel": "medium",
+  "approvalRequirements": [
+    "human approval for outward side effects"
+  ],
+  "examples": [],
+  "tests": [],
+  "createdAt": "2026-06-03T00:00:00.000Z",
+  "updatedAt": "2026-06-03T00:00:00.000Z"
+}

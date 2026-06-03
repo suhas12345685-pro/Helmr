@@ -1,0 +1,32 @@
+{
+  "id": "audit.explain",
+  "name": "Audit Explain",
+  "description": "Summarize audit receipts and job traces",
+  "version": "0.1.0",
+  "kind": "skill",
+  "source": "builtin",
+  "enabled": true,
+  "triggers": [
+    "audit",
+    "receipt"
+  ],
+  "instructions": "Summarize audit receipts and job traces",
+  "permissions": [
+    "audit:read"
+  ],
+  "tools": [],
+  "inputSchemas": {},
+  "outputSchemas": {},
+  "requiredSecrets": [],
+  "healthCheck": {},
+  "runtimeConstraints": {
+    "network": "approval",
+    "requiresWorkspace": false
+  },
+  "riskLevel": "low",
+  "approvalRequirements": [],
+  "examples": [],
+  "tests": [],
+  "createdAt": "2026-06-03T00:00:00.000Z",
+  "updatedAt": "2026-06-03T00:00:00.000Z"
+}

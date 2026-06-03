@@ -10,7 +10,8 @@ import { ChannelConfigStore } from '../../channels/src/channel-config.js';
 import { HelmrSQLiteStore } from '../../memory/src/sqlite-store.js';
 import { ModelRouter } from '../../router/src/model-router.js';
 import { DEFAULT_ROUTING } from '../../router/src/routing-config.js';
-import { evaluateApiAuth } from '../../shared/src/http-auth.js';
+import { evaluateApiAuth, safeTokenEquals } from '../../shared/src/http-auth.js';
+import { makeErrorMessage, makeGatewayMessage, safeParseGatewayMessage, HELMR_PROTOCOL_VERSION } from '../../protocol/src/index.js';
 import {
   DEFAULT_HEADERS_TIMEOUT_MS,
   DEFAULT_REQUEST_TIMEOUT_MS,
@@ -26,11 +27,13 @@ import { getHelmrPaths } from '../../../src/paths.js';
 export interface GatewayServerOptions {
   port?: number;
   dataDir?: string;
+  host?: string;
 }
 
 export interface GatewayAppOptions {
   dataDir?: string;
   gatewayPort?: number;
+  bindHost?: string;
 }
 
 const GATEWAY_PORT = 3999;
@@ -71,6 +74,11 @@ export function createGatewayApp(store: HelmrSQLiteStore, router: ModelRouter, o
       authorizationHeader: c.req.header('authorization'),
       method: c.req.method,
       path: new URL(c.req.url).pathname,
+      nodeEnv: process.env['NODE_ENV'],
+      helmrProduction: process.env['HELMR_PRODUCTION'],
+      requireAuth: process.env['HELMR_REQUIRE_AUTH'],
+      authMode: process.env['HELMR_AUTH_MODE'],
+      bindHost: options.bindHost ?? process.env['HELMR_BIND_HOST'],
     });
     if (!decision.allowed) {
       return c.json({ error: decision.error }, decision.status);
@@ -269,13 +277,14 @@ async function runSelfTestChecks(): Promise<Array<{ name: string; passed: boolea
 
 export async function startGatewayServer(options: GatewayServerOptions = {}): Promise<{ close: () => Promise<void> }> {
   const port = options.port ?? GATEWAY_PORT;
+  const host = options.host ?? process.env['HELMR_BIND_HOST'];
   const dataDir = options.dataDir ?? getHelmrPaths().dataDir;
 
   const store = new HelmrSQLiteStore(join(dataDir, 'helmr.db'));
   await store.init();
 
   const router = new ModelRouter(DEFAULT_ROUTING);
-  const app = createGatewayApp(store, router, { dataDir, gatewayPort: port });
+  const app = createGatewayApp(store, router, { dataDir, gatewayPort: port, bindHost: host });
 
   // Use createAdaptorServer so we can attach WebSocket to the same http.Server
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -295,23 +304,70 @@ export async function startGatewayServer(options: GatewayServerOptions = {}): Pr
 
   wss.on('connection', (ws) => {
     clients.add(ws);
-    ws.send(JSON.stringify({ type: 'connected', message: 'Helmr WebChat ready' }));
+    let authenticated = false;
+    ws.send(JSON.stringify(makeGatewayMessage('HELLO', {
+      server: 'Helmr Gateway',
+      protocolVersion: HELMR_PROTOCOL_VERSION,
+      capabilities: ['heartbeat', 'job-status', 'approval-events'],
+    }, { correlationId: `corr_${randomUUID()}` })));
 
     ws.on('message', (data) => {
+      let raw: unknown;
       try {
-        const msg = JSON.parse(String(data)) as { type?: string; text?: string };
-        if (msg.type === 'ping') {
-          ws.send(JSON.stringify({ type: 'pong' }));
-        }
+        raw = JSON.parse(String(data));
       } catch {
-        // ignore malformed frames
+        ws.send(JSON.stringify(makeErrorMessage('invalid_json', 'WebSocket frame must be valid JSON.')));
+        return;
       }
+
+      const parsed = safeParseGatewayMessage(raw);
+      if (!parsed.ok) {
+        ws.send(JSON.stringify(makeErrorMessage('invalid_protocol', parsed.error)));
+        return;
+      }
+
+      const message = parsed.message;
+      if (message.type === 'AUTH') {
+        const token = process.env['HELMR_API_TOKEN']?.trim();
+        const supplied = String(message.payload['token'] ?? '');
+        if (token && safeTokenEquals(supplied, token)) {
+          authenticated = true;
+          ws.send(JSON.stringify(makeGatewayMessage('RESPONSE', { authenticated: true }, { correlationId: message.id, requestId: message.requestId })));
+        } else {
+          ws.send(JSON.stringify(makeErrorMessage('unauthorized', 'Invalid Gateway token.', message.id)));
+          ws.close(1008, 'unauthorized');
+        }
+        return;
+      }
+
+      if (message.type === 'HEARTBEAT') {
+        ws.send(JSON.stringify(makeGatewayMessage('HEARTBEAT', { ok: true }, { correlationId: message.id, requestId: message.requestId })));
+        return;
+      }
+
+      if (!authenticated && process.env['HELMR_API_TOKEN']) {
+        ws.send(JSON.stringify(makeErrorMessage('unauthorized', 'Authenticate before using private Gateway streams.', message.id)));
+        return;
+      }
+
+      if (message.type === 'REQUEST' && message.payload['jobId']) {
+        ws.send(JSON.stringify(makeGatewayMessage('JOB_STATUS', { jobId: String(message.payload['jobId']), status: 'queued' }, { correlationId: message.id, requestId: message.requestId })));
+        return;
+      }
+
+      ws.send(JSON.stringify(makeErrorMessage('invalid_protocol', `Unsupported message type for this Gateway path: ${message.type}`, message.id)));
     });
 
     ws.on('close', () => clients.delete(ws));
   });
 
-  await new Promise<void>((resolve) => httpServer.listen(port, resolve));
+  await new Promise<void>((resolve) => {
+    if (host?.trim()) {
+      httpServer.listen(port, host, resolve);
+    } else {
+      httpServer.listen(port, resolve);
+    }
+  });
 
   return {
     close: async () => {

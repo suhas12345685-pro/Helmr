@@ -1,0 +1,26 @@
+services:
+  helmr:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: helmr:local
+    user: helmr
+    ports:
+      - "3999:3999"
+    environment:
+      HELMR_PRODUCTION: "true"
+      HELMR_BIND_HOST: "0.0.0.0"
+      HELMR_DATA_DIR: /var/lib/helmr/data
+      HELMR_CONFIG_DIR: /var/lib/helmr/config
+      HELMR_AUDIT_LOG: /var/lib/helmr/audit/audit.log
+      HELMR_ALLOWED_ORIGINS: ${HELMR_ALLOWED_ORIGINS:?set explicit origins}
+      HELMR_API_TOKEN: ${HELMR_API_TOKEN:?set a long random token}
+    volumes:
+      - helmr-data:/var/lib/helmr
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3999/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  helmr-data:
