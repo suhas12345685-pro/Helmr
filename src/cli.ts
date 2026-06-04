@@ -37,20 +37,6 @@ Usage:
   helmr policy [init]         Show (or initialize) the outward-action standing policy
   helmr doctor                Health & safety-posture report (budget, kill-switch, audit)
   helmr channels add          Add a new communication channel
-  helmr marketplace submit <path|repo>   Submit a capability for validation + scanning
-  helmr marketplace scan <path|repo>     Security-scan a capability
-  helmr marketplace fix <path|repo>      Show fix suggestions for scan findings
-  helmr marketplace approve <id>         Maintainer-approve a reviewed submission
-  helmr marketplace reject <id>          Reject a submission
-  helmr marketplace quarantine <id>      Quarantine a failed/broken submission
-  helmr marketplace publish <id>         Publish an approved, clean submission
-  helmr marketplace report <id>          Show a submission's full record
-  helmr marketplace list                 List all submissions
-  helmr bugs report           File and triage a bug report
-  helmr bugs reproduce <id>   Capture a failing regression test for a bug
-  helmr bugs scan <id>        Check whether a bug is safe to auto-fix
-  helmr bugs fix <id>         Prepare a fix branch for a reproducible bug
-  helmr bugs create-pr <id>   Scaffold a fix PR for a bug
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
 
@@ -385,16 +371,6 @@ Created: ${new Date().toISOString()}
       console.log('Usage: helmr channels add --channel <name> --method <method>');
       process.exit(1);
     }
-  }
-
-  if (command === 'marketplace') {
-    const { runMarketplaceCommand } = await import('./marketplace-cli.js');
-    process.exit(await runMarketplaceCommand(args.slice(1)));
-  }
-
-  if (command === 'bugs') {
-    const { runBugsCommand } = await import('./bugs-cli.js');
-    process.exit(await runBugsCommand(args.slice(1)));
   }
 
   if (command === 'ask' || command === 'swarm') {

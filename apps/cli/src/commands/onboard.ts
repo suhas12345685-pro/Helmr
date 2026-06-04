@@ -187,7 +187,7 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
     config.llms[llm] = {
       enabled: true,
       tokenEnv: option.tokenEnv,
-      token: typeof token === "string" ? token.trim() : "",
+      token: typeof token === 'string' ? token.trim() : '',
     };
   }
 }

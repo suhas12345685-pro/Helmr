@@ -144,13 +144,13 @@ export class ConfigFileManager {
 
   async init(): Promise<void> {
     await mkdir(this.configDir, { recursive: true });
-    await Promise.all((Object.keys(TEMPLATES) as ConfigFileName[]).map(async (name) => {
+    for (const name of Object.keys(TEMPLATES) as ConfigFileName[]) {
       const path = join(this.configDir, name);
       const exists = await access(path).then(() => true).catch(() => false);
       if (!exists) {
         await writeFile(path, TEMPLATES[name], 'utf8');
       }
-    }));
+    }
   }
 
   async read(name: ConfigFileName): Promise<string> {

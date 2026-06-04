@@ -67,13 +67,21 @@ function checkNode(): boolean {
 }
 
 function checkPnpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
-  const out = deps.runOptionalCommand('pnpm --version', { silent: true });
-  return out.length > 0;
+  try {
+    const out = deps.runOptionalCommand('pnpm --version', { silent: true });
+    return out.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 function checkNpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
-  const out = deps.runOptionalCommand('npm --version', { silent: true });
-  return out.length > 0;
+  try {
+    const out = deps.runOptionalCommand('npm --version', { silent: true });
+    return out.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function formatBanner(text: string): string {

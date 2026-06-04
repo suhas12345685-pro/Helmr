@@ -44,7 +44,6 @@ export {
 export { createHelmrMemory, createInMemoryHelmrMemory } from './memory/mastra-memory.js';
 export {
   HELMR_LOOP,
-  HELMR_DYNAMIC_RUNTIME,
   HELMR_DOCTRINE_PILLARS,
   HELMR_KILLER_LINE,
   HELMR_DOCTRINE_PREAMBLE,
