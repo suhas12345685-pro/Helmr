@@ -36,14 +36,11 @@ test('installer copy uses current helmr start command', async () => {
   assert.doesNotMatch(source, /\['daemon', 'start'\]/);
 });
 
-test('installer terminal path does not ask architecture onboarding questions', async () => {
+test('installer terminal path delegates architecture choices to Hatchery flow', async () => {
   const { readFile } = await import('node:fs/promises');
   const source = await readFile(new URL('./index.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /provider.*\?/i);
-  assert.doesNotMatch(source, /model.*\?/i);
-  assert.doesNotMatch(source, /channel.*\?/i);
-  assert.doesNotMatch(source, /workspace.*\?/i);
-  assert.doesNotMatch(source, /personality.*\?/i);
+  assert.match(source, /HATCHERY_ONBOARDING_FLOW/);
+  assert.match(source, /ONBOARDING_PROVIDERS/);
 });
 
 test('dry-run prints intended actions without filesystem, install, prompt, or daemon side effects', async () => {

@@ -151,6 +151,15 @@ export function createHatcheryApp(
       authorizationHeader: c.req.header('authorization'),
       method: c.req.method,
       path: new URL(c.req.url).pathname,
+      nodeEnv: process.env['NODE_ENV'],
+      helmrProduction: process.env['HELMR_PRODUCTION'],
+      requireAuth: process.env['HELMR_REQUIRE_AUTH'],
+      // Hatchery is the first-run onboarding control plane; default to the local dev
+      // override so a token-less localhost install can reach onboarding/status endpoints.
+      // Production, public-bind, and require-auth deployments still fail closed because
+      // those conditions take precedence over the authMode=none override.
+      authMode: process.env['HELMR_AUTH_MODE'] ?? 'none',
+      bindHost: process.env['HELMR_BIND_HOST'],
     });
     if (!decision.allowed) {
       return c.json({ error: decision.error }, decision.status);
@@ -531,7 +540,7 @@ async function runSelfTest(): Promise<Array<{ name: string; passed: boolean; det
   const checks: Array<{ name: string; passed: boolean; detail?: string }> = [];
 
   const nodeMajor = parseInt(process.versions.node.split('.')[0] ?? '0', 10);
-  checks.push({ name: 'node_version', passed: nodeMajor >= 18, detail: process.versions.node });
+  checks.push({ name: 'node_version', passed: nodeMajor >= 22, detail: process.versions.node });
 
   try {
     await import('@mastra/core/mastra');

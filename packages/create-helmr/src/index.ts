@@ -10,6 +10,35 @@ const helmrDir = join(homedir(), '.helmr');
 const configDir = join(helmrDir, 'config');
 const dataDir = join(helmrDir, 'data');
 
+export const ONBOARDING_PROVIDERS = [
+  { id: 'openai', name: 'OpenAI', authMethods: ['api_key', 'oauth'] },
+  { id: 'anthropic', name: 'Anthropic', authMethods: ['api_key'] },
+  { id: 'google-gemini', name: 'Google Gemini', authMethods: ['api_key', 'oauth'] },
+  { id: 'groq', name: 'Groq', authMethods: ['api_key'] },
+  { id: 'perplexity-sonar', name: 'Perplexity Sonar', authMethods: ['api_key'] },
+  { id: 'xai-grok', name: 'xAI/Grok', authMethods: ['api_key'] },
+  { id: 'deepseek', name: 'DeepSeek', authMethods: ['api_key'] },
+  { id: 'kimi', name: 'Kimi', authMethods: ['api_key'] },
+  { id: 'ollama', name: 'Ollama', authMethods: ['local'] },
+  { id: 'lm-studio', name: 'LM Studio', authMethods: ['local'] },
+] as const;
+
+export const HATCHERY_ONBOARDING_FLOW = [
+  'choose mode: Personal or Enterprise',
+  'choose LLM provider and supported auth method',
+  'validate connection',
+  'choose model',
+  'choose channels',
+  'choose skills',
+  'choose autonomy level: manual, approval-gated, semi-autonomous, scheduled, enterprise controlled',
+  'configure per-job, daily, monthly and token budgets',
+  'configure local SQLite memory retention and export/delete options',
+  'finish Hatchery',
+] as const;
+
+export const PERSONAL_GREETING = 'Hey, I came online. Set my vibe, who I am, and who you are.';
+export const ENTERPRISE_GREETING = 'Hey, I came online. Tell me my role, my tasks, my channel, company name, escalation rules, and approval policy.';
+
 type CommandOptions = { silent?: boolean };
 type SpawnFn = typeof nodeSpawn;
 
@@ -61,9 +90,15 @@ export function runRequiredCommand(cmd: string, opts: CommandOptions = {}): stri
   return execSync(cmd, { encoding: 'utf8', stdio: opts.silent ? 'pipe' : 'inherit' }).toString().trim();
 }
 
-function checkNode(): boolean {
-  const major = parseInt(process.versions.node.split('.')[0] ?? '0', 10);
-  return major >= 18;
+// Keep in sync with the "engines.node" floor declared in package.json.
+const MIN_NODE_VERSION = '22.19.0';
+
+function checkNode(version = process.versions.node): boolean {
+  const [major = 0, minor = 0, patch = 0] = version.split('.').map((part) => parseInt(part, 10) || 0);
+  const [reqMajor, reqMinor, reqPatch] = MIN_NODE_VERSION.split('.').map((part) => parseInt(part, 10) || 0);
+  if (major !== reqMajor) return major > reqMajor;
+  if (minor !== reqMinor) return minor > reqMinor;
+  return patch >= reqPatch;
 }
 
 function checkPnpm(deps: Pick<InstallerDeps, 'runOptionalCommand'>): boolean {
@@ -134,16 +169,18 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   deps.log('Checking system requirements...\n');
 
   const nodeOk = checkNode();
-  check('Node.js >= 18', nodeOk, process.versions.node, deps);
+  check(`Node.js >= ${MIN_NODE_VERSION}`, nodeOk, process.versions.node, deps);
   if (!nodeOk) {
-    deps.error('\nNode.js 18 or higher is required. Install from https://nodejs.org');
+    deps.error(`\nNode.js ${MIN_NODE_VERSION} or higher is required. Install from https://nodejs.org`);
     return 1;
   }
 
-  const pnpmOk = checkPnpm(deps);
+  // Prefer npm, which ships with Node and is therefore always present; only probe for
+  // pnpm as a fallback when npm is unavailable.
   const npmOk = checkNpm(deps);
-  const pkgMgrOk = pnpmOk || npmOk;
-  const pkgMgr = pnpmOk ? 'pnpm' : 'npm';
+  const pnpmOk = npmOk ? false : checkPnpm(deps);
+  const pkgMgrOk = npmOk || pnpmOk;
+  const pkgMgr = npmOk ? 'npm' : 'pnpm';
 
   check(`${pkgMgr} available`, pkgMgrOk, undefined, deps);
   if (!pkgMgrOk) {
@@ -231,7 +268,9 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   }
 
   deps.log('\nNext command after onboarding:');
-  deps.log('  helmr ask "summarize this workspace"\n');
+  deps.log('  helmr ask "summarize this workspace"');
+  deps.log(`Personal: ${PERSONAL_GREETING}`);
+  deps.log(`Enterprise: ${ENTERPRISE_GREETING}\n`);
 
   return 0;
 

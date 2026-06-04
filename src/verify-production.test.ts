@@ -1,52 +1,79 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { join } from 'node:path';
 
-import { buildProductionVerificationEnv } from './verify-production.js';
+import { verifyDeploymentEnv } from './verify-production.js';
 
-test('production verification helper enables hardened self-test settings', () => {
-  const env = buildProductionVerificationEnv({}, 'C:/helmr');
-
-  assert.equal(env.HELMR_PRODUCTION, 'true');
-  assert.equal(env.HELMR_API_TOKEN, '0123456789abcdef0123456789abcdef');
-  assert.equal(env.HELMR_ALLOWED_ORIGINS, 'http://localhost:4000');
-  assert.equal(env.HELMR_RATE_LIMIT_PER_MINUTE, '120');
-  assert.equal(env.HELMR_MAX_BODY_BYTES, '1048576');
-  assert.equal(env.HELMR_DATA_DIR, join('C:/helmr', '.helmr-production-check', 'data'));
-  assert.equal(env.HELMR_CONFIG_DIR, join('C:/helmr', '.helmr-production-check', 'config'));
+test('deployment verification fails closed without explicit production secrets and paths', () => {
+  const result = verifyDeploymentEnv({});
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('HELMR_API_TOKEN')));
+  assert.ok(result.failures.some((failure) => failure.includes('HELMR_ALLOWED_ORIGINS')));
 });
 
-test('production verification helper overrides short token leaked from host shell', () => {
-  const env = buildProductionVerificationEnv({
+test('deployment verification rejects weak tokens and wildcard origins', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
     HELMR_API_TOKEN: 'too-short',
-  }, 'C:/helmr');
-
-  assert.equal(env.HELMR_API_TOKEN, '0123456789abcdef0123456789abcdef');
-});
-
-test('production verification helper overrides wildcard origin leaked from host shell', () => {
-  const env = buildProductionVerificationEnv({
     HELMR_ALLOWED_ORIGINS: '*',
-  }, 'C:/helmr');
-
-  assert.equal(env.HELMR_ALLOWED_ORIGINS, 'http://localhost:4000');
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_LOG: '/var/lib/helmr/audit.log',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('at least 32')));
+  assert.ok(result.failures.some((failure) => failure.includes('wildcard')));
 });
 
-test('production verification helper preserves explicit hardened settings', () => {
-  const env = buildProductionVerificationEnv({
+test('deployment verification rejects wildcard origins inside a list', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://app.example.com,https://*.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_DIR: '/var/lib/helmr/audit',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('wildcard')));
+});
+
+test('deployment verification accepts HELMR_AUDIT_DIR in place of HELMR_AUDIT_LOG', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
     HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     HELMR_ALLOWED_ORIGINS: 'https://helmr.example.com',
-    HELMR_RATE_LIMIT_PER_MINUTE: '60',
-    HELMR_MAX_BODY_BYTES: '524288',
-    HELMR_DATA_DIR: 'D:/helmr/data',
-    HELMR_CONFIG_DIR: 'D:/helmr/config',
-  }, 'C:/helmr');
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_DIR: '/var/lib/helmr/audit',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, true);
+});
 
-  assert.equal(env.HELMR_PRODUCTION, 'true');
-  assert.equal(env.HELMR_API_TOKEN, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-  assert.equal(env.HELMR_ALLOWED_ORIGINS, 'https://helmr.example.com');
-  assert.equal(env.HELMR_RATE_LIMIT_PER_MINUTE, '60');
-  assert.equal(env.HELMR_MAX_BODY_BYTES, '524288');
-  assert.equal(env.HELMR_DATA_DIR, 'D:/helmr/data');
-  assert.equal(env.HELMR_CONFIG_DIR, 'D:/helmr/config');
+test('deployment verification fails when no audit location is configured', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://helmr.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, false);
+  assert.ok(result.failures.some((failure) => failure.includes('HELMR_AUDIT_DIR')));
+});
+
+test('deployment verification passes with explicit hardened settings', () => {
+  const result = verifyDeploymentEnv({
+    HELMR_PRODUCTION: 'true',
+    HELMR_API_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    HELMR_ALLOWED_ORIGINS: 'https://helmr.example.com',
+    HELMR_DATA_DIR: '/var/lib/helmr/data',
+    HELMR_CONFIG_DIR: '/var/lib/helmr/config',
+    HELMR_AUDIT_LOG: '/var/lib/helmr/audit.log',
+    HELMR_BACKUP_DIR: '/var/backups/helmr',
+  });
+  assert.equal(result.passed, true);
 });

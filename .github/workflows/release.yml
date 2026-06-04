@@ -1,0 +1,14 @@
+name: Release
+on:
+  workflow_dispatch:
+jobs:
+  release-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm', registry-url: 'https://registry.npmjs.org' }
+      - run: npm ci
+      - run: node scripts/release/validate.mjs
+      - run: npm run package:dry-run
+      - run: npm publish --dry-run

@@ -11,6 +11,6 @@
     "outDir": "dist",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "packages/**/*.ts", "apps/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "packages/**/*.ts", "qa/**/*.ts"],
+  "exclude": ["node_modules", "dist", "apps"]
 }

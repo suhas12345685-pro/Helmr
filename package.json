@@ -1,25 +1,42 @@
 {
   "name": "helmr",
   "version": "1.0.0",
-  "description": "Helmr self-hosted AI orchestrator research and implementation workspace.",
+  "description": "Dynamic self-hosted TypeScript-first AI agent platform with Gateway control plane, Council orchestration, skills, memory, approvals, channels, and safe autonomy.",
   "main": "dist/index.js",
   "bin": {
     "helmr": "dist/src/cli.js"
   },
   "scripts": {
     "dev": "mastra dev",
-    "build": "mastra build",
+    "build": "npm run build:ts",
     "build:ts": "tsc",
     "build:web": "npm --prefix apps/hatchery-web run build",
     "build:tui": "npm --prefix apps/hatchery-tui run build",
     "start:mastra": "mastra start",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "npm run build:ts && node --test \"dist/**/*.test.js\"",
-    "verify": "npm run typecheck && npm test && npm run build:web && npm run build:tui && npm --prefix packages/create-helmr test",
-    "verify:production": "npm run verify && node dist/src/verify-production.js"
+    "test:e2e": "npm run build:ts && node --test \"dist/qa/e2e/**/*.test.js\"",
+    "test:contracts": "npm run build:ts && node --test \"dist/qa/contracts/**/*.test.js\"",
+    "verify": "npm run typecheck && npm test && npm run test:contracts",
+    "verify:local-prod-sim": "npm run build:ts && node scripts/doctor/verify-local-prod-sim.mjs",
+    "verify:deployment": "node scripts/doctor/verify-deployment.mjs",
+    "docker:build": "docker build -t helmr:local .",
+    "package:dry-run": "npm run build:ts && node scripts/package/smoke-pack.mjs",
+    "security:audit": "npm run build:ts && node dist/src/cli.js security audit"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ai-agent",
+    "gateway",
+    "orchestration",
+    "self-hosted",
+    "typescript",
+    "skills",
+    "memory",
+    "approvals",
+    "automation"
+  ],
+  "author": "Helmr project maintainers",
   "license": "UNLICENSED",
   "type": "module",
   "dependencies": {
@@ -31,7 +48,7 @@
     "@ai-sdk/xai": "^3.0.92",
     "@clack/prompts": "^1.5.1",
     "@hono/node-server": "^1.19.14",
-    "@libsql/client": "^0.17.3",
+    "@libsql/client": "^0.15.15",
     "@mastra/client-js": "^1.21.1",
     "@mastra/core": "^1.37.1",
     "@mastra/libsql": "^1.11.1",
@@ -68,5 +85,34 @@
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suhas12345685-pro/Helmr.git"
+  },
+  "homepage": "https://github.com/suhas12345685-pro/Helmr#readme",
+  "bugs": {
+    "url": "https://github.com/suhas12345685-pro/Helmr/issues"
+  },
+  "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./protocol": "./dist/packages/protocol/src/index.js",
+    "./plugin-sdk": "./dist/packages/plugin-sdk/src/index.js",
+    "./provider-sdk": "./dist/packages/provider-sdk/src/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "docs/",
+    "deploy/",
+    "packages/skills/builtin/"
+  ],
+  "sideEffects": false
 }

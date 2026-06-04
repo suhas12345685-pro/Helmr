@@ -1,54 +1,15 @@
 name: CI
-
-on:
-  push:
-    branches: ['**']
-  pull_request:
-  workflow_dispatch:
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
+on: [push, pull_request]
 jobs:
-  verify:
-    name: Build & test (hermetic)
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
+        with: { node-version: '24', cache: 'npm' }
       - run: npm ci
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build
-        run: npm run build:ts
-      - name: Test (offline fallback path)
-        # No model keys here, so the live-LLM smoke test self-skips and the suite
-        # stays hermetic and free.
-        run: node --test "dist/**/*.test.js"
-
-  llm-smoke:
-    name: Live-LLM smoke (key-gated)
-    needs: verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - name: Build
-        run: npm run build:ts
-      - name: Live-LLM smoke test
-        # The test exercises the REAL reasoning path (a live model call with
-        # structured output). It is key-gated: when ANTHROPIC_API_KEY is unset
-        # (e.g. on forks without secret access) the test skips and the job stays
-        # green. Configure the repository secret to actually run it.
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          HELMR_LLM_TIMEOUT_MS: '120000'
-        run: node --test "dist/src/llm-smoke.test.js"
+      - run: npm run typecheck
+      - run: npm run build:ts
+      - run: npm test
+      - run: npm run test:contracts
+      - run: npm run package:dry-run

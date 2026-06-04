@@ -1,0 +1,6 @@
+rules:
+  - id: no-hardcoded-helmr-token
+    message: Do not hardcode HELMR_API_TOKEN values.
+    severity: ERROR
+    languages: [typescript, javascript]
+    pattern-regex: 'HELMR_API_TOKEN\s*[:=]\s*["''][^"'']{16,}'

@@ -13,6 +13,8 @@ const SKILL_FILE_SUFFIX = '.skill.json';
  * a skill written by an approved `skill_write` receipt is "auto-wired" — it shows
  * up the next time anything lists skills, with no restart or code change needed.
  */
+export interface SkillRegistryEntry { manifest?: SkillManifest; path: string; status: 'enabled' | 'disabled' | 'broken'; error?: string }
+
 export class SkillRegistry {
   constructor(private readonly skillsDir: string) {}
 
@@ -74,7 +76,45 @@ export class SkillRegistry {
     };
   }
 
-  /** All skills on disk. Malformed skill files are skipped, never thrown. */
+  /** Inspect all skill files, quarantining malformed modules instead of crashing. */
+  async entries(): Promise<SkillRegistryEntry[]> {
+    let entries: string[];
+    try {
+      entries = await readdir(this.skillsDir);
+    } catch {
+      return [];
+    }
+
+    const loaded = await Promise.all(entries.sort().map(async (entry): Promise<SkillRegistryEntry | null> => {
+      if (!entry.endsWith(SKILL_FILE_SUFFIX)) return null;
+      const path = join(this.skillsDir, entry);
+      try {
+        const raw = await readFile(path, 'utf8');
+        const manifest = parseSkillManifest(JSON.parse(raw));
+        return { manifest, path, status: manifest.enabled ? 'enabled' : 'disabled' };
+      } catch (err) {
+        return { path, status: 'broken', error: err instanceof Error ? err.message : String(err) };
+      }
+    }));
+    return loaded.filter((entry): entry is SkillRegistryEntry => entry !== null);
+  }
+
+  async listBroken(): Promise<SkillRegistryEntry[]> {
+    return (await this.entries()).filter((entry) => entry.status === 'broken');
+  }
+
+  async health(): Promise<Array<{ id: string; ok: boolean; detail: string }>> {
+    return (await this.entries()).map((entry) => entry.manifest
+      ? { id: entry.manifest.id, ok: entry.status !== 'broken' && entry.manifest.enabled, detail: entry.status }
+      : { id: entry.path, ok: false, detail: entry.error ?? 'broken manifest' });
+  }
+
+  async docsMarkdown(): Promise<string> {
+    const skills = await this.list();
+    return ['# Helmr Skill Registry', '', ...skills.map((skill) => `## ${skill.id}\n${skill.description}\n\n- Kind: ${skill.kind}\n- Risk: ${skill.riskLevel}\n- Permissions: ${skill.permissions.join(', ') || 'none'}`)].join('\n');
+  }
+
+  /** All valid skills on disk. Malformed skill files are visible via entries/listBroken. */
   async list(): Promise<SkillManifest[]> {
     let entries: string[];
     try {
@@ -83,20 +123,8 @@ export class SkillRegistry {
       return [];
     }
 
-    const loadSkillPromises = entries.sort().map(async (entry) => {
-      if (!entry.endsWith(SKILL_FILE_SUFFIX)) return null;
-      try {
-        // ⚡ Bolt: parallelize file reading and parsing
-        const raw = await readFile(join(this.skillsDir, entry), 'utf8');
-        return parseSkillManifest(JSON.parse(raw));
-      } catch {
-        // Skip malformed or partially-written skill files so discovery is robust.
-        return null;
-      }
-    });
-
-    const results = await Promise.all(loadSkillPromises);
-    return results.filter((skill): skill is SkillManifest => skill !== null);
+    const results = await this.entries();
+    return results.map((entry) => entry.manifest).filter((skill): skill is SkillManifest => Boolean(skill));
   }
 
   async listEnabled(): Promise<SkillManifest[]> {
@@ -150,6 +178,11 @@ export class SkillRegistry {
  * Naive relevance match: which enabled skills are triggered by a piece of text.
  * This is the "sense which skill applies" step of the anticipatory loop.
  */
+export function filterSkillsByPermissions(skills: SkillManifest[], allowedPermissions: string[]): SkillManifest[] {
+  const allowed = new Set(allowedPermissions);
+  return skills.filter((skill) => skill.permissions.every((permission) => allowed.has(permission)));
+}
+
 export function matchSkills(skills: SkillManifest[], text: string): SkillManifest[] {
   const haystack = text.toLowerCase();
   return skills
