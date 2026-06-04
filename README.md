@@ -64,9 +64,21 @@ This modernization adds production-grade contracts, docs, CI, deployment templat
 
 Start with [Getting started](docs/getting-started.md), [Architecture](docs/architecture.md), [Gateway protocol](docs/gateway-protocol.md), [Security](docs/security.md), [Deployment](docs/deployment.md), [Skills](docs/skills.md), [Plugin SDK](docs/plugin-sdk.md), [Providers](docs/providers.md), [Channels](docs/channels.md), and the [Production checklist](docs/production-checklist.md).
 
+## Skill Guard (supply-chain defense)
+
+Where OpenClaw-style marketplaces ship thousands of unvetted, unsigned skills — field scans have found ~26% carrying exploitable patterns — Helmr gates every skill before it runs. **Skill Guard** statically scans manifests for dangerous instructions (remote-code pipes, secret exfiltration, privilege escalation, prompt injection, reverse shells) and under-declared risk, **and** cryptographically signs/verifies skills against trusted Ed25519 author keys. The combined trust gate decides `admit` / `quarantine` / `block`, so a tampered or hostile skill never reaches execution.
+
+```bash
+helmr skills keygen          # generate a signing/author key
+helmr skills sign <path> <key.pem>
+helmr skills scan            # scan + verify every installed skill (CI-friendly exit codes)
+```
+
+See [docs/skills.md](docs/skills.md) for the full model and configuration (`HELMR_REQUIRE_SIGNED_SKILLS`, `HELMR_TRUSTED_SKILL_KEYS`).
+
 ## Roadmap
 
-- Signed skill/plugin verification.
+- ~~Signed skill/plugin verification.~~ ✅ Shipped via Skill Guard (`helmr skills sign|verify|scan`).
 - Fully durable distributed runtime leases.
 - Real Slack/Discord/Email adapters behind pairing and allowlists.
 - Rich Hatchery UI for every onboarding step.

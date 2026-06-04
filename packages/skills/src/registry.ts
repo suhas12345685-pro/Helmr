@@ -3,6 +3,7 @@ import { watch as fsWatch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 
 import { parseSkillManifest, type SkillManifest } from './manifest.js';
+import { evaluateSkillTrust, type SkillTrustReport, type TrustPolicy } from './skill-guard.js';
 
 const SKILL_FILE_SUFFIX = '.skill.json';
 
@@ -101,6 +102,35 @@ export class SkillRegistry {
 
   async listBroken(): Promise<SkillRegistryEntry[]> {
     return (await this.entries()).filter((entry) => entry.status === 'broken');
+  }
+
+  /**
+   * Run Skill Guard over every valid skill on disk, returning a trust report per
+   * skill. This is the supply-chain gate: callers can refuse to load anything the
+   * report marks `block`/`quarantine` before a single tool runs.
+   */
+  async scan(policy: TrustPolicy = {}): Promise<Array<{ id: string; path: string; report: SkillTrustReport }>> {
+    const entries = await this.entries();
+    return entries
+      .filter((entry): entry is SkillRegistryEntry & { manifest: SkillManifest } => Boolean(entry.manifest))
+      .map((entry) => ({ id: entry.manifest.id, path: entry.path, report: evaluateSkillTrust(entry.manifest, policy) }));
+  }
+
+  /** Skills that Skill Guard would not admit under the given policy. */
+  async listUntrusted(policy: TrustPolicy = {}): Promise<Array<{ id: string; report: SkillTrustReport }>> {
+    return (await this.scan(policy))
+      .filter((result) => result.report.decision !== 'admit')
+      .map(({ id, report }) => ({ id, report }));
+  }
+
+  /**
+   * Enabled skills that also pass the Skill Guard trust gate. This is the safe
+   * set to hand to the Council/Governor: a skill that is enabled but quarantined
+   * or blocked never reaches execution.
+   */
+  async listTrustedEnabled(policy: TrustPolicy = {}): Promise<SkillManifest[]> {
+    const reports = new Map((await this.scan(policy)).map((r) => [r.id, r.report.decision]));
+    return (await this.listEnabled()).filter((skill) => reports.get(skill.id) === 'admit');
   }
 
   async health(): Promise<Array<{ id: string; ok: boolean; detail: string }>> {

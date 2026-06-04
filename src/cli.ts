@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolve } from 'node:path';
+import { resolve, join } from 'node:path';
 import { runJob } from './runtime.js';
 import { runSelfTest, printSelfTestResults } from './self-test.js';
 import { startDaemon, stopDaemon, daemonStatus } from './daemon.js';
@@ -44,6 +44,10 @@ Usage:
   helmr skills disable <id>   Disable a skill
   helmr skills doctor         Validate skill health
   helmr skills validate <path> Validate a skill manifest
+  helmr skills scan           Security-scan & verify installed skills (Skill Guard)
+  helmr skills keygen         Generate an Ed25519 author key for signing skills
+  helmr skills sign <path>    Sign a skill manifest with an author key
+  helmr skills verify <path>  Verify a skill's integrity and signature
   helmr backup <dir>          Copy local Helmr state into a backup directory
   helmr install-service        Install user-level service integration
   helmr help                  Show this help
@@ -159,6 +163,30 @@ async function openKillSwitch(): Promise<{ killSwitch: import('../packages/sched
   return { killSwitch: new KillSwitch({ store }), store };
 }
 
+/**
+ * Trusted skill-author public keys, gathered from `<configDir>/trusted-keys/*.pem`
+ * plus any inline PEM in `HELMR_TRUSTED_SKILL_KEYS` (newline- or comma-separated).
+ */
+async function loadTrustedSkillKeys(): Promise<string[]> {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const keys: string[] = [];
+  const dir = join(getHelmrPaths().configDir, 'trusted-keys');
+  try {
+    for (const name of await readdir(dir)) {
+      if (name.endsWith('.pem')) keys.push(await readFile(join(dir, name), 'utf8'));
+    }
+  } catch {
+    // No trusted-keys directory yet; inline env keys may still apply.
+  }
+  const inline = process.env.HELMR_TRUSTED_SKILL_KEYS?.trim();
+  if (inline) {
+    for (const pem of inline.split(/\n(?=-----BEGIN)|,(?=\s*-----BEGIN)/)) {
+      if (pem.includes('BEGIN')) keys.push(pem.trim());
+    }
+  }
+  return keys;
+}
+
 async function main(): Promise<void> {
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     printUsage();
@@ -187,8 +215,17 @@ async function main(): Promise<void> {
   }
 
   if (command === 'skills') {
-    const { readFile } = await import('node:fs/promises');
-    const { SkillRegistry, globalSkillsDir, parseSkillManifest } = await import('../packages/skills/src/index.js');
+    const { readFile, writeFile } = await import('node:fs/promises');
+    const {
+      SkillRegistry,
+      globalSkillsDir,
+      parseSkillManifest,
+      evaluateSkillTrust,
+      verifySkillSignature,
+      signSkill,
+      generateSkillKeypair,
+      formatTrustReport,
+    } = await import('../packages/skills/src/index.js');
     const registry = new SkillRegistry(globalSkillsDir(getHelmrPaths().dataDir));
     await registry.init();
     if (subCommand === 'list' || !subCommand) {
@@ -224,6 +261,48 @@ async function main(): Promise<void> {
       parseSkillManifest(JSON.parse(await readFile(resolve(file), 'utf8')));
       console.log(`Valid skill manifest: ${file}`);
       process.exit(0);
+    }
+    if (subCommand === 'scan') {
+      const trustedKeys = await loadTrustedSkillKeys();
+      const results = await registry.scan({ trustedKeys, allowUnsigned: process.env.HELMR_REQUIRE_SIGNED_SKILLS !== 'true' });
+      if (results.length === 0) console.log('No skills to scan.');
+      for (const { id, report } of results) console.log(formatTrustReport(id, report));
+      const blocked = results.filter((r) => r.report.decision === 'block').length;
+      const quarantined = results.filter((r) => r.report.decision === 'quarantine').length;
+      console.log(`\nScanned ${results.length} skill(s): ${blocked} blocked, ${quarantined} quarantined.`);
+      process.exit(blocked > 0 ? 2 : quarantined > 0 ? 1 : 0);
+    }
+    if (subCommand === 'keygen') {
+      const keypair = generateSkillKeypair();
+      const keyDir = join(getHelmrPaths().configDir, 'skill-keys');
+      await (await import('node:fs/promises')).mkdir(keyDir, { recursive: true });
+      const priv = join(keyDir, `${keypair.keyId}.private.pem`);
+      const pub = join(getHelmrPaths().configDir, 'trusted-keys', `${keypair.keyId}.pem`);
+      await (await import('node:fs/promises')).mkdir(join(getHelmrPaths().configDir, 'trusted-keys'), { recursive: true });
+      await writeFile(priv, keypair.privateKey, { mode: 0o600 });
+      await writeFile(pub, keypair.publicKey, { mode: 0o644 });
+      console.log(`Generated author key ${keypair.keyId}`);
+      console.log(`  private: ${priv} (keep secret)`);
+      console.log(`  public:  ${pub} (trusted; sign skills with the private key)`);
+      process.exit(0);
+    }
+    if (subCommand === 'sign') {
+      const file = args[2];
+      const keyPath = args[3] ?? process.env.HELMR_SKILL_SIGNING_KEY;
+      if (!file || !keyPath) { console.error('Usage: helmr skills sign <path> <private-key.pem>  (or set HELMR_SKILL_SIGNING_KEY)'); process.exit(1); }
+      const manifest = parseSkillManifest(JSON.parse(await readFile(resolve(file), 'utf8')));
+      const signed = signSkill(manifest, await readFile(resolve(keyPath), 'utf8'));
+      await writeFile(resolve(file), `${JSON.stringify(signed, null, 2)}\n`, 'utf8');
+      console.log(`Signed ${signed.id} (checksum ${signed.checksum?.slice(0, 16)}…)`);
+      process.exit(0);
+    }
+    if (subCommand === 'verify') {
+      const file = args[2];
+      if (!file) { console.error('Usage: helmr skills verify <path>'); process.exit(1); }
+      const manifest = parseSkillManifest(JSON.parse(await readFile(resolve(file), 'utf8')));
+      const verdict = verifySkillSignature(manifest, await loadTrustedSkillKeys());
+      console.log(`${verdict.status.toUpperCase()}: ${verdict.reason}`);
+      process.exit(verdict.status === 'valid' ? 0 : 1);
     }
     console.error(`Unknown skills subcommand: ${subCommand}`);
     process.exit(1);
