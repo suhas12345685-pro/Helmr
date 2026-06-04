@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import {
   cancel,
+     perf/self-healing-probe-concurrent-fetch-6603064595144236735
   multiselect as checkbox,
+ 
+  multiselect,
+        main
   confirm,
   intro,
   isCancel,
@@ -187,7 +191,7 @@ async function collectProviderTokens(selectedLlms: LlmId[], config: HelmrConfig)
     config.llms[llm] = {
       enabled: true,
       tokenEnv: option.tokenEnv,
-      token: token.trim(),
+      token: typeof token === 'string' ? token.trim() : '',
     };
   }
 }
@@ -200,20 +204,20 @@ export async function runOnboarding(): Promise<void> {
   intro(`${pc.cyan('⚓ Helmr')} ${pc.bold('Onboarding')}`);
 
   const selectedLlms = abortIfCancelled(
-    await checkbox<LlmId>({
+    await multiselect<LlmId>({
       message: 'Select one or more LLM providers to configure.',
       options: llmOptions.map(({ value, label, hint }) => ({ value, label, hint })),
       required: true,
     }),
-  );
+  ) as LlmId[];
 
   const selectedChannels = abortIfCancelled(
-    await checkbox<ChannelId>({
+    await multiselect<ChannelId>({
       message: 'Select one or more messaging channels to pre-provision.',
       options: channelOptions.map(({ value, label, hint }) => ({ value, label, hint })),
       required: true,
     }),
-  );
+  ) as ChannelId[];
 
   const config: HelmrConfig = {
     version: 1,
