@@ -271,8 +271,14 @@ export function createJobHealingProbe(options: JobHealingOptions): HealingProbe 
       const incidents: Incident[] = [];
       const nowMs = now().getTime();
 
-      for (const status of ACTIVE_STATUSES) {
-        const jobs = await options.store.listJobs({ status, limit: scanLimit });
+      const [activeStatusesJobs, failed] = await Promise.all([
+        Promise.all(ACTIVE_STATUSES.map(status =>
+          options.store.listJobs({ status, limit: scanLimit }).then(jobs => ({ status, jobs }))
+        )),
+        options.store.listJobs({ status: 'failed', limit: scanLimit })
+      ]);
+
+      for (const { status, jobs } of activeStatusesJobs) {
         for (const job of jobs) {
           if (!job.leaseUntil) continue;
           const deadline = new Date(job.leaseUntil).getTime();
@@ -287,7 +293,6 @@ export function createJobHealingProbe(options: JobHealingOptions): HealingProbe 
         }
       }
 
-      const failed = await options.store.listJobs({ status: 'failed', limit: scanLimit });
       for (const job of failed) {
         if (job.attempts >= job.maxAttempts) continue;
         // Reasoning-plane failures are owned by the re-plan probe.

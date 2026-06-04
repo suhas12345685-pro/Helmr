@@ -41,7 +41,10 @@
     "@mastra/observability": "^1.14.0",
     "@mastra/pg": "^1.11.1",
     "@mastra/server": "^1.37.1",
+  perf/self-healing-probe-concurrent-fetch-6603064595144236735
+ 
     "@types/better-sqlite3": "^7.6.13",
+    main
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
     "hono": "^4.12.23",
