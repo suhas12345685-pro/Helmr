@@ -1,0 +1,2160 @@
+
+> helmr@1.0.0 verify
+> npm run typecheck && npm test && npm run test:contracts
+
+
+> helmr@1.0.0 typecheck
+> tsc --noEmit
+
+
+> helmr@1.0.0 test
+> npm run build:ts && node --test "dist/**/*.test.js"
+
+
+> helmr@1.0.0 build:ts
+> tsc
+
+TAP version 13
+# Subtest: Telegram pairing rejects when Telegram does not accept the pairing message
+ok 1 - Telegram pairing rejects when Telegram does not accept the pairing message
+  ---
+  duration_ms: 2.713002
+  type: 'test'
+  ...
+# Subtest: Discord pairing rejects when Discord does not create a DM channel
+ok 2 - Discord pairing rejects when Discord does not create a DM channel
+  ---
+  duration_ms: 0.753444
+  type: 'test'
+  ...
+# Subtest: Slack pairing rejects when Slack does not accept the pairing message
+ok 3 - Slack pairing rejects when Slack does not accept the pairing message
+  ---
+  duration_ms: 0.7513
+  type: 'test'
+  ...
+# Subtest: Slack ignores message events without a user instead of emitting local-owner events
+ok 4 - Slack ignores message events without a user instead of emitting local-owner events
+  ---
+  duration_ms: 1.100569
+  type: 'test'
+  ...
+# Subtest: channel adapters emit chat events for remote principals
+ok 5 - channel adapters emit chat events for remote principals
+  ---
+  duration_ms: 5.900022
+  type: 'test'
+  ...
+# Subtest: a failed channel adapter is restarted and validated active
+ok 6 - a failed channel adapter is restarted and validated active
+  ---
+  duration_ms: 3.219229
+  type: 'test'
+  ...
+# Subtest: no incident is raised when every channel is healthy
+ok 7 - no incident is raised when every channel is healthy
+  ---
+  duration_ms: 0.419209
+  type: 'test'
+  ...
+# Subtest: parseIrcLine splits prefix, command, and trailing param
+ok 8 - parseIrcLine splits prefix, command, and trailing param
+  ---
+  duration_ms: 2.032774
+  type: 'test'
+  ...
+# Subtest: parseIrcLine parses a prefix-less PING with trailing token
+ok 9 - parseIrcLine parses a prefix-less PING with trailing token
+  ---
+  duration_ms: 0.324146
+  type: 'test'
+  ...
+# Subtest: encodeSaslPlain produces a NUL-separated authzid/authcid/passwd payload
+ok 10 - encodeSaslPlain produces a NUL-separated authzid/authcid/passwd payload
+  ---
+  duration_ms: 0.29215
+  type: 'test'
+  ...
+# Subtest: IRC private query becomes a limited remote chat event
+ok 11 - IRC private query becomes a limited remote chat event
+  ---
+  duration_ms: 4.838112
+  type: 'test'
+  ...
+# Subtest: IRC ignores messages echoed from the bot nick itself
+ok 12 - IRC ignores messages echoed from the bot nick itself
+  ---
+  duration_ms: 0.304337
+  type: 'test'
+  ...
+# Subtest: IRC configure rejects an out-of-range port
+ok 13 - IRC configure rejects an out-of-range port
+  ---
+  duration_ms: 0.823952
+  type: 'test'
+  ...
+# Subtest: IRC pairing then start requires an active, paired channel
+ok 14 - IRC pairing then start requires an active, paired channel
+  ---
+  duration_ms: 1.196951
+  type: 'test'
+  ...
+# Subtest: Signal envelope becomes a limited remote chat event
+ok 15 - Signal envelope becomes a limited remote chat event
+  ---
+  duration_ms: 6.244223
+  type: 'test'
+  ...
+# Subtest: Signal pairing surfaces daemon JSON-RPC errors
+ok 16 - Signal pairing surfaces daemon JSON-RPC errors
+  ---
+  duration_ms: 1.474441
+  type: 'test'
+  ...
+# Subtest: WhatsApp webhook payload becomes a limited remote chat event
+ok 17 - WhatsApp webhook payload becomes a limited remote chat event
+  ---
+  duration_ms: 0.950166
+  type: 'test'
+  ...
+# Subtest: WhatsApp pairing surfaces Graph API errors
+ok 18 - WhatsApp pairing surfaces Graph API errors
+  ---
+  duration_ms: 0.723154
+  type: 'test'
+  ...
+# Subtest: Google Chat event becomes a limited remote chat event
+ok 19 - Google Chat event becomes a limited remote chat event
+  ---
+  duration_ms: 0.619995
+  type: 'test'
+  ...
+# Subtest: Google Chat pairing surfaces API errors
+ok 20 - Google Chat pairing surfaces API errors
+  ---
+  duration_ms: 0.498157
+  type: 'test'
+  ...
+# Subtest: Teams activity becomes a limited remote chat event
+ok 21 - Teams activity becomes a limited remote chat event
+  ---
+  duration_ms: 0.734065
+  type: 'test'
+  ...
+# Subtest: Teams pairing surfaces connector errors
+ok 22 - Teams pairing surfaces connector errors
+  ---
+  duration_ms: 0.688502
+  type: 'test'
+  ...
+# Subtest: WeChat message becomes a limited remote chat event
+ok 23 - WeChat message becomes a limited remote chat event
+  ---
+  duration_ms: 0.817199
+  type: 'test'
+  ...
+# Subtest: WeChat pairing surfaces qyapi errors
+ok 24 - WeChat pairing surfaces qyapi errors
+  ---
+  duration_ms: 0.960735
+  type: 'test'
+  ...
+# Subtest: iMessage message becomes a limited remote chat event
+ok 25 - iMessage message becomes a limited remote chat event
+  ---
+  duration_ms: 0.507416
+  type: 'test'
+  ...
+# Subtest: iMessage refuses to pair or start off macOS
+ok 26 - iMessage refuses to pair or start off macOS
+  ---
+  duration_ms: 0.497228
+  type: 'test'
+  ...
+# Subtest: iMessage pairing whispers a code through the AppleScript sender and activates
+ok 27 - iMessage pairing whispers a code through the AppleScript sender and activates
+  ---
+  duration_ms: 0.645781
+  type: 'test'
+  ...
+# Subtest: remote adapters refuse to start before pairing activates them
+ok 28 - remote adapters refuse to start before pairing activates them
+  ---
+  duration_ms: 1.097535
+  type: 'test'
+  ...
+# Subtest: supervisor starts active adapters and skips inactive ones
+ok 29 - supervisor starts active adapters and skips inactive ones
+  ---
+  duration_ms: 2.901464
+  type: 'test'
+  ...
+# Subtest: supervisor records adapters that throw on start without aborting the rest
+ok 30 - supervisor records adapters that throw on start without aborting the rest
+  ---
+  duration_ms: 0.770244
+  type: 'test'
+  ...
+# Subtest: supervisor wires the shared emitter to enqueue
+ok 31 - supervisor wires the shared emitter to enqueue
+  ---
+  duration_ms: 0.400952
+  type: 'test'
+  ...
+# Subtest: factory builds only paired channels that have credentials
+ok 32 - factory builds only paired channels that have credentials
+  ---
+  duration_ms: 1.019911
+  type: 'test'
+  ...
+# Subtest: factory ignores unpaired channels even with credentials present
+ok 33 - factory ignores unpaired channels even with credentials present
+  ---
+  duration_ms: 0.25496
+  type: 'test'
+  ...
+# Subtest: supervisor.deliver routes a reply to the matching active adapter
+ok 34 - supervisor.deliver routes a reply to the matching active adapter
+  ---
+  duration_ms: 0.80567
+  type: 'test'
+  ...
+# Subtest: supervisor.deliver returns false when no active adapter can deliver
+ok 35 - supervisor.deliver returns false when no active adapter can deliver
+  ---
+  duration_ms: 0.568477
+  type: 'test'
+  ...
+# Subtest: supervisor.deliver swallows a failing adapter send and reports false
+ok 36 - supervisor.deliver swallows a failing adapter send and reports false
+  ---
+  duration_ms: 0.380749
+  type: 'test'
+  ...
+# Subtest: WebChatAdapter rejects unauthenticated handshakes when apiToken is configured
+ok 37 - WebChatAdapter rejects unauthenticated handshakes when apiToken is configured
+  ---
+  duration_ms: 21.966984
+  type: 'test'
+  ...
+# Subtest: WebChatAdapter rejects handshakes with a wrong token
+ok 38 - WebChatAdapter rejects handshakes with a wrong token
+  ---
+  duration_ms: 5.666035
+  type: 'test'
+  ...
+# Subtest: WebChatAdapter accepts handshakes presenting the configured token
+ok 39 - WebChatAdapter accepts handshakes presenting the configured token
+  ---
+  duration_ms: 35.159035
+  type: 'test'
+  ...
+# Subtest: WebChatAdapter remains open when no apiToken is configured (local-dev default)
+ok 40 - WebChatAdapter remains open when no apiToken is configured (local-dev default)
+  ---
+  duration_ms: 11.519309
+  type: 'test'
+  ...
+# Subtest: base env is always granted but provider API keys never are
+ok 41 - base env is always granted but provider API keys never are
+  ---
+  duration_ms: 2.05319
+  type: 'test'
+  ...
+# Subtest: git_write grants the git token but not the npm token
+ok 42 - git_write grants the git token but not the npm token
+  ---
+  duration_ms: 0.44443
+  type: 'test'
+  ...
+# Subtest: package_install grants the npm token but not the git token
+ok 43 - package_install grants the npm token but not the git token
+  ---
+  duration_ms: 0.315987
+  type: 'test'
+  ...
+# Subtest: grants are unioned across multiple capabilities
+ok 44 - grants are unioned across multiple capabilities
+  ---
+  duration_ms: 1.354074
+  type: 'test'
+  ...
+# Subtest: absent or empty secrets are not granted
+ok 45 - absent or empty secrets are not granted
+  ---
+  duration_ms: 0.441808
+  type: 'test'
+  ...
+# Subtest: isCredentialScopedCapability reflects the mapping
+ok 46 - isCredentialScopedCapability reflects the mapping
+  ---
+  duration_ms: 0.195077
+  type: 'test'
+  ...
+# Subtest: readAll returns empty object when no store exists yet
+ok 47 - readAll returns empty object when no store exists yet
+  ---
+  duration_ms: 12.748252
+  type: 'test'
+  ...
+# Subtest: set then get round-trips and persists across instances
+ok 48 - set then get round-trips and persists across instances
+  ---
+  duration_ms: 7.97329
+  type: 'test'
+  ...
+# Subtest: set trims whitespace and refuses empty values
+ok 49 - set trims whitespace and refuses empty values
+  ---
+  duration_ms: 14.166556
+  type: 'test'
+  ...
+# Subtest: the secrets file is written with owner-only (0600) permissions
+ok 50 - the secrets file is written with owner-only (0600) permissions
+  ---
+  duration_ms: 3.519471
+  type: 'test'
+  ...
+# Subtest: loadInto applies stored keys but never clobbers the environment
+ok 51 - loadInto applies stored keys but never clobbers the environment
+  ---
+  duration_ms: 5.545753
+  type: 'test'
+  ...
+# Subtest: delete removes a key and reports whether it existed
+ok 52 - delete removes a key and reports whether it existed
+  ---
+  duration_ms: 5.562721
+  type: 'test'
+  ...
+# Subtest: a corrupt store surfaces an error from readAll (startup loader swallows it)
+ok 53 - a corrupt store surfaces an error from readAll (startup loader swallows it)
+  ---
+  duration_ms: 2.996596
+  type: 'test'
+  ...
+# Subtest: non-object JSON (array/null) is treated as an empty store
+ok 54 - non-object JSON (array/null) is treated as an empty store
+  ---
+  duration_ms: 2.513154
+  type: 'test'
+  ...
+# Subtest: load returns fail-safe default when no file exists
+ok 55 - load returns fail-safe default when no file exists
+  ---
+  duration_ms: 7.659961
+  type: 'test'
+  ...
+# Subtest: save then load round-trips a policy
+ok 56 - save then load round-trips a policy
+  ---
+  duration_ms: 5.740947
+  type: 'test'
+  ...
+# Subtest: malformed policy file falls back to default rather than throwing
+ok 57 - malformed policy file falls back to default rather than throwing
+  ---
+  duration_ms: 2.60937
+  type: 'test'
+  ...
+# Subtest: init writes a template only when absent
+ok 58 - init writes a template only when absent
+  ---
+  duration_ms: 4.363475
+  type: 'test'
+  ...
+# Subtest: inward capabilities are auto — no gate
+ok 59 - inward capabilities are auto — no gate
+  ---
+  duration_ms: 2.415861
+  type: 'test'
+  ...
+# Subtest: outward capability with no rule is gated (fail-safe default)
+ok 60 - outward capability with no rule is gated (fail-safe default)
+  ---
+  duration_ms: 0.309805
+  type: 'test'
+  ...
+# Subtest: alwaysGated rule forces gated even when constraints would match
+ok 61 - alwaysGated rule forces gated even when constraints would match
+  ---
+  duration_ms: 0.210261
+  type: 'test'
+  ...
+# Subtest: branch within allow-list and not denied is standing
+ok 62 - branch within allow-list and not denied is standing
+  ---
+  duration_ms: 0.625843
+  type: 'test'
+  ...
+# Subtest: deny-list takes precedence over allow-list
+ok 63 - deny-list takes precedence over allow-list
+  ---
+  duration_ms: 0.235086
+  type: 'test'
+  ...
+# Subtest: host allow-list matches exact and wildcard subdomains
+ok 64 - host allow-list matches exact and wildcard subdomains
+  ---
+  duration_ms: 0.353938
+  type: 'test'
+  ...
+# Subtest: host-constrained rule without a host in input is gated
+ok 65 - host-constrained rule without a host in input is gated
+  ---
+  duration_ms: 0.199735
+  type: 'test'
+  ...
+# Subtest: unconstrained rule grants blanket standing authority
+ok 66 - unconstrained rule grants blanket standing authority
+  ---
+  duration_ms: 0.272214
+  type: 'test'
+  ...
+# Subtest: NucleoidLogicProvider disabled — delegates to Helmr deterministic engine
+ok 67 - NucleoidLogicProvider disabled — delegates to Helmr deterministic engine
+  ---
+  duration_ms: 1.541732
+  type: 'test'
+  ...
+# Subtest: NucleoidLogicProvider disabled — write plan is explained as allowed=false
+ok 68 - NucleoidLogicProvider disabled — write plan is explained as allowed=false
+  ---
+  duration_ms: 0.413768
+  type: 'test'
+  ...
+# Subtest: NucleoidLogicProvider disabled — suggest returns empty array
+ok 69 - NucleoidLogicProvider disabled — suggest returns empty array
+  ---
+  duration_ms: 0.96898
+  type: 'test'
+  ...
+# Subtest: NucleoidLogicProvider disabled — write plan suggest returns advisory
+ok 70 - NucleoidLogicProvider disabled — write plan suggest returns advisory
+  ---
+  duration_ms: 0.213836
+  type: 'test'
+  ...
+# Subtest: autonomous owner self-extends without approval at any risk
+ok 71 - autonomous owner self-extends without approval at any risk
+  ---
+  duration_ms: 1.239523
+  type: 'test'
+  ...
+# Subtest: standing mode auto-approves only low-risk owner skill writes
+ok 72 - standing mode auto-approves only low-risk owner skill writes
+  ---
+  duration_ms: 0.33435
+  type: 'test'
+  ...
+# Subtest: standing approval is withheld for non-owners, manual mode, or non-skill writes
+ok 73 - standing approval is withheld for non-owners, manual mode, or non-skill writes
+  ---
+  duration_ms: 0.168993
+  type: 'test'
+  ...
+# Subtest: getSkillAutonomy defaults to autonomous and respects explicit dials
+ok 74 - getSkillAutonomy defaults to autonomous and respects explicit dials
+  ---
+  duration_ms: 0.225858
+  type: 'test'
+  ...
+# Subtest: read-only plan is allowed without approval
+ok 75 - read-only plan is allowed without approval
+  ---
+  duration_ms: 0.429064
+  type: 'test'
+  ...
+# Subtest: write plan is gated by approval
+ok 76 - write plan is gated by approval
+  ---
+  duration_ms: 0.211667
+  type: 'test'
+  ...
+# Subtest: approved receipt is executable and denied receipt is blocked
+ok 77 - approved receipt is executable and denied receipt is blocked
+  ---
+  duration_ms: 0.294459
+  type: 'test'
+  ...
+# Subtest: create-helmr installer helpers
+    # Subtest: reports required command failures instead of silently continuing
+    ok 1 - reports required command failures instead of silently continuing
+      ---
+      duration_ms: 43.451208
+      type: 'test'
+      ...
+    # Subtest: renders onboarding copy without mojibake glyph artifacts
+    ok 2 - renders onboarding copy without mojibake glyph artifacts
+      ---
+      duration_ms: 0.426813
+      type: 'test'
+      ...
+    # Subtest: parses dry-run flags
+    ok 3 - parses dry-run flags
+      ---
+      duration_ms: 0.350603
+      type: 'test'
+      ...
+    1..3
+ok 78 - create-helmr installer helpers
+  ---
+  duration_ms: 45.548663
+  type: 'suite'
+  ...
+# Subtest: installer copy uses current helmr start command
+ok 79 - installer copy uses current helmr start command
+  ---
+  duration_ms: 14.972296
+  type: 'test'
+  ...
+# Subtest: installer terminal path delegates architecture choices to Hatchery flow
+ok 80 - installer terminal path delegates architecture choices to Hatchery flow
+  ---
+  duration_ms: 1.517597
+  type: 'test'
+  ...
+# Subtest: dry-run prints intended actions without filesystem, install, prompt, or daemon side effects
+ok 81 - dry-run prints intended actions without filesystem, install, prompt, or daemon side effects
+  ---
+  duration_ms: 1.936188
+  type: 'test'
+  ...
+# Subtest: installer normal path installs, starts Gateway/Hatchery, and opens onboarding without prompts
+ok 82 - installer normal path installs, starts Gateway/Hatchery, and opens onboarding without prompts
+  ---
+  duration_ms: 1.123029
+  type: 'test'
+  ...
+# Subtest: open command is platform-specific and shell-safe
+ok 83 - open command is platform-specific and shell-safe
+  ---
+  duration_ms: 0.591686
+  type: 'test'
+  ...
+# Subtest: Hatchery onboarding flow supports Personal and Enterprise BYOAK setup without Anthropic lock-in
+ok 84 - Hatchery onboarding flow supports Personal and Enterprise BYOAK setup without Anthropic lock-in
+  ---
+  duration_ms: 2.103176
+  type: 'test'
+  ...
+# Subtest: runAgentLoop perceives, acts through virtual hands, and reports done
+ok 85 - runAgentLoop perceives, acts through virtual hands, and reports done
+  ---
+  duration_ms: 4.742869
+  type: 'test'
+  ...
+# Subtest: a decider observing its workspace drives to completion
+ok 86 - a decider observing its workspace drives to completion
+  ---
+  duration_ms: 1.003262
+  type: 'test'
+  ...
+# Subtest: the loop stops and fails safely on a permission error
+ok 87 - the loop stops and fails safely on a permission error
+  ---
+  duration_ms: 2.723253
+  type: 'test'
+  ...
+# Subtest: runAgentLoop halts within one step when the kill-switch is engaged
+ok 88 - runAgentLoop halts within one step when the kill-switch is engaged
+  ---
+  duration_ms: 0.571892
+  type: 'test'
+  ...
+# Subtest: browser provider gives each agent its own isolated context
+ok 89 - browser provider gives each agent its own isolated context
+  ---
+  duration_ms: 3.981281
+  type: 'test'
+  ...
+# Subtest: navigating without browser_safe permission is denied
+ok 90 - navigating without browser_safe permission is denied
+  ---
+  duration_ms: 0.946429
+  type: 'test'
+  ...
+# Subtest: direct messages reach only the addressed agent
+ok 91 - direct messages reach only the addressed agent
+  ---
+  duration_ms: 3.095935
+  type: 'test'
+  ...
+# Subtest: broadcast reaches every agent except the sender
+ok 92 - broadcast reaches every agent except the sender
+  ---
+  duration_ms: 0.608181
+  type: 'test'
+  ...
+# Subtest: orchestrator observes direct, broadcast, and orchestrator traffic
+ok 93 - orchestrator observes direct, broadcast, and orchestrator traffic
+  ---
+  duration_ms: 0.434925
+  type: 'test'
+  ...
+# Subtest: unsubscribing stops delivery
+ok 94 - unsubscribing stops delivery
+  ---
+  duration_ms: 0.283452
+  type: 'test'
+  ...
+# Subtest: spawns many agents, each with its own isolated body
+ok 95 - spawns many agents, each with its own isolated body
+  ---
+  duration_ms: 5.271576
+  type: 'test'
+  ...
+# Subtest: agents never share a keyboard, mouse, or session
+ok 96 - agents never share a keyboard, mouse, or session
+  ---
+  duration_ms: 2.249957
+  type: 'test'
+  ...
+# Subtest: read-only agents cannot drive the keyboard or mouse
+ok 97 - read-only agents cannot drive the keyboard or mouse
+  ---
+  duration_ms: 1.276805
+  type: 'test'
+  ...
+# Subtest: lifecycle: assign, pause, resume, complete, and collect results
+ok 98 - lifecycle: assign, pause, resume, complete, and collect results
+  ---
+  duration_ms: 0.893051
+  type: 'test'
+  ...
+# Subtest: killUnhealthy stops agents with a stale heartbeat
+ok 99 - killUnhealthy stops agents with a stale heartbeat
+  ---
+  duration_ms: 0.78269
+  type: 'test'
+  ...
+# Subtest: stopAgent destroys the workspace so it can no longer be observed
+ok 100 - stopAgent destroys the workspace so it can no longer be observed
+  ---
+  duration_ms: 0.603074
+  type: 'test'
+  ...
+# Subtest: default permissions are conservative
+ok 101 - default permissions are conservative
+  ---
+  duration_ms: 2.100348
+  type: 'test'
+  ...
+# Subtest: assertPermission throws a typed error when a zone is missing
+ok 102 - assertPermission throws a typed error when a zone is missing
+  ---
+  duration_ms: 0.803765
+  type: 'test'
+  ...
+# Subtest: dangerous actions require user approval unless explicitly granted
+ok 103 - dangerous actions require user approval unless explicitly granted
+  ---
+  duration_ms: 0.276485
+  type: 'test'
+  ...
+# Subtest: PlaywrightBrowserDriver throws a clear, actionable error when playwright is absent
+ok 104 - PlaywrightBrowserDriver throws a clear, actionable error when playwright is absent
+  ---
+  duration_ms: 2.981708
+  type: 'test'
+  ...
+# Subtest: PlaywrightBrowserDriver satisfies the BrowserDriver interface for the provider
+ok 105 - PlaywrightBrowserDriver satisfies the BrowserDriver interface for the provider
+  ---
+  duration_ms: 0.542069
+  type: 'test'
+  ...
+# Subtest: gateway keeps health public while token-protecting API routes
+ok 106 - gateway keeps health public while token-protecting API routes
+  ---
+  duration_ms: 98.721858
+  type: 'test'
+  ...
+# Subtest: normalizeCliEvent converts a local CLI ask into a HelmrEvent
+ok 107 - normalizeCliEvent converts a local CLI ask into a HelmrEvent
+  ---
+  duration_ms: 6.659929
+  type: 'test'
+  ...
+# Subtest: normalizeApiEvent converts an authenticated API request into a HelmrEvent
+ok 108 - normalizeApiEvent converts an authenticated API request into a HelmrEvent
+  ---
+  duration_ms: 1.265313
+  type: 'test'
+  ...
+# Subtest: normalizeCliEvent rejects blank event text
+ok 109 - normalizeCliEvent rejects blank event text
+  ---
+  duration_ms: 0.620295
+  type: 'test'
+  ...
+# Subtest: normalization strips ANSI/control delimiters and normalizes unicode
+ok 110 - normalization strips ANSI/control delimiters and normalizes unicode
+  ---
+  duration_ms: 0.559492
+  type: 'test'
+  ...
+# Subtest: records LLM usage as USD spend per job
+ok 111 - records LLM usage as USD spend per job
+  ---
+  duration_ms: 2.318604
+  type: 'test'
+  ...
+# Subtest: trips the per-job USD cap
+ok 112 - trips the per-job USD cap
+  ---
+  duration_ms: 2.338584
+  type: 'test'
+  ...
+# Subtest: per-day USD cap is shared across jobs and persisted via the daily store
+ok 113 - per-day USD cap is shared across jobs and persisted via the daily store
+  ---
+  duration_ms: 0.552336
+  type: 'test'
+  ...
+# Subtest: trips the action-count cap
+ok 114 - trips the action-count cap
+  ---
+  duration_ms: 0.283616
+  type: 'test'
+  ...
+# Subtest: trips the wall-clock cap
+ok 115 - trips the wall-clock cap
+  ---
+  duration_ms: 0.589849
+  type: 'test'
+  ...
+# Subtest: trips the sliding tool-rate cap and recovers after the window
+ok 116 - trips the sliding tool-rate cap and recovers after the window
+  ---
+  duration_ms: 0.294897
+  type: 'test'
+  ...
+# Subtest: projected cost is considered before allowing a call
+ok 117 - projected cost is considered before allowing a call
+  ---
+  duration_ms: 0.420109
+  type: 'test'
+  ...
+# Subtest: allows everything when no limits are configured
+ok 118 - allows everything when no limits are configured
+  ---
+  duration_ms: 0.256157
+  type: 'test'
+  ...
+# Subtest: accumulates spend and persists across instances
+ok 119 - accumulates spend and persists across instances
+  ---
+  duration_ms: 16.242799
+  type: 'test'
+  ...
+# Subtest: serializes concurrent adds without lost updates
+ok 120 - serializes concurrent adds without lost updates
+  ---
+  duration_ms: 35.680146
+  type: 'test'
+  ...
+# Subtest: writes the spend file with owner-only permissions
+ok 121 - writes the spend file with owner-only permissions
+  ---
+  duration_ms: 3.490372
+  type: 'test'
+  ...
+# Subtest: normalizeModelId strips provider prefix and dated suffix
+ok 122 - normalizeModelId strips provider prefix and dated suffix
+  ---
+  duration_ms: 1.463672
+  type: 'test'
+  ...
+# Subtest: priceForModel resolves known models and prefix variants
+ok 123 - priceForModel resolves known models and prefix variants
+  ---
+  duration_ms: 1.18493
+  type: 'test'
+  ...
+# Subtest: priceForModel falls back to the conservative default for unknown models
+ok 124 - priceForModel falls back to the conservative default for unknown models
+  ---
+  duration_ms: 0.214088
+  type: 'test'
+  ...
+# Subtest: estimateCostUsd computes USD from input/output tokens
+ok 125 - estimateCostUsd computes USD from input/output tokens
+  ---
+  duration_ms: 4.479149
+  type: 'test'
+  ...
+# Subtest: estimateCostUsd supports legacy prompt/completion token names
+ok 126 - estimateCostUsd supports legacy prompt/completion token names
+  ---
+  duration_ms: 0.253336
+  type: 'test'
+  ...
+# Subtest: estimateCostUsd attributes a total-only usage to the costlier output side
+ok 127 - estimateCostUsd attributes a total-only usage to the costlier output side
+  ---
+  duration_ms: 0.190938
+  type: 'test'
+  ...
+# Subtest: estimateCostUsd returns 0 for missing usage
+ok 128 - estimateCostUsd returns 0 for missing usage
+  ---
+  duration_ms: 0.359458
+  type: 'test'
+  ...
+# Subtest: rollback restores modified files, recreates deleted ones, and removes new ones
+ok 129 - rollback restores modified files, recreates deleted ones, and removes new ones
+  ---
+  duration_ms: 46.381787
+  type: 'test'
+  ...
+# Subtest: excludes heavy/derived directories from the snapshot
+ok 130 - excludes heavy/derived directories from the snapshot
+  ---
+  duration_ms: 10.605103
+  type: 'test'
+  ...
+# Subtest: skips the checkpoint when the tree exceeds the size cap
+ok 131 - skips the checkpoint when the tree exceeds the size cap
+  ---
+  duration_ms: 4.363074
+  type: 'test'
+  ...
+# Subtest: loadLatest returns the most recent recoverable checkpoint for on-demand rollback
+ok 132 - loadLatest returns the most recent recoverable checkpoint for on-demand rollback
+  ---
+  duration_ms: 6.489806
+  type: 'test'
+  ...
+# Subtest: discard removes the snapshot directory
+ok 133 - discard removes the snapshot directory
+  ---
+  duration_ms: 17.805215
+  type: 'test'
+  ...
+# Subtest: a gated outward receipt without approval is refused before dispatch
+ok 134 - a gated outward receipt without approval is refused before dispatch
+  ---
+  duration_ms: 11.649353
+  type: 'test'
+  ...
+# Subtest: standing policy promotes a matching host and the request executes
+ok 135 - standing policy promotes a matching host and the request executes
+  ---
+  duration_ms: 45.240392
+  type: 'test'
+  ...
+# Subtest: a host outside the standing allow-list stays gated
+ok 136 - a host outside the standing allow-list stays gated
+  ---
+  duration_ms: 1.851396
+  type: 'test'
+  ...
+# Subtest: an explicitly approved gated receipt is allowed past the gate
+ok 137 - an explicitly approved gated receipt is allowed past the gate
+  ---
+  duration_ms: 10.249828
+  type: 'test'
+  ...
+# Subtest: httpRequest performs a GET and returns status + body
+ok 138 - httpRequest performs a GET and returns status + body
+  ---
+  duration_ms: 46.293978
+  type: 'test'
+  ...
+# Subtest: httpRequest sends a POST body
+ok 139 - httpRequest sends a POST body
+  ---
+  duration_ms: 22.241043
+  type: 'test'
+  ...
+# Subtest: httpRequest rejects non-http protocols
+ok 140 - httpRequest rejects non-http protocols
+  ---
+  duration_ms: 1.013855
+  type: 'test'
+  ...
+# Subtest: messageSend posts text and reports delivery
+ok 141 - messageSend posts text and reports delivery
+  ---
+  duration_ms: 12.456699
+  type: 'test'
+  ...
+# Subtest: messageSend rejects empty text
+ok 142 - messageSend rejects empty text
+  ---
+  duration_ms: 0.639249
+  type: 'test'
+  ...
+# Subtest: messageSend surfaces a delivery failure
+ok 143 - messageSend surfaces a delivery failure
+  ---
+  duration_ms: 10.452551
+  type: 'test'
+  ...
+# Subtest: gitPush rejects unsafe branch and remote names
+ok 144 - gitPush rejects unsafe branch and remote names
+  ---
+  duration_ms: 0.772763
+  type: 'test'
+  ...
+# Subtest: gitPush pushes a branch to a local bare remote
+ok 145 - gitPush pushes a branch to a local bare remote
+  ---
+  duration_ms: 98.638615
+  type: 'test'
+  ...
+# Subtest: subprocess inherits full env when no scoped env is provided
+ok 146 - subprocess inherits full env when no scoped env is provided
+  ---
+  duration_ms: 50.092166
+  type: 'test'
+  ...
+# Subtest: a broker-scoped env keeps provider secrets out of the subprocess
+ok 147 - a broker-scoped env keeps provider secrets out of the subprocess
+  ---
+  duration_ms: 91.005494
+  type: 'test'
+  ...
+# Subtest: read tools summarize workspace and block path traversal
+ok 148 - read tools summarize workspace and block path traversal
+  ---
+  duration_ms: 13.089266
+  type: 'test'
+  ...
+# Subtest: shellReadTool blocks disallowed commands
+ok 149 - shellReadTool blocks disallowed commands
+  ---
+  duration_ms: 2.136769
+  type: 'test'
+  ...
+# Subtest: shellReadTool allows node version check
+ok 150 - shellReadTool allows node version check
+  ---
+  duration_ms: 15.733017
+  type: 'test'
+  ...
+# Subtest: gitStatusTool does not throw in non-git directory
+ok 151 - gitStatusTool does not throw in non-git directory
+  ---
+  duration_ms: 9.451536
+  type: 'test'
+  ...
+# Subtest: filesystem write tools block path traversal
+ok 152 - filesystem write tools block path traversal
+  ---
+  duration_ms: 11.048382
+  type: 'test'
+  ...
+# Subtest: filesystem write tools work successfully for valid paths
+ok 153 - filesystem write tools work successfully for valid paths
+  ---
+  duration_ms: 21.360232
+  type: 'test'
+  ...
+# Subtest: runShellWrite gates and blocks non-allowlisted commands
+ok 154 - runShellWrite gates and blocks non-allowlisted commands
+  ---
+  duration_ms: 1.428681
+  type: 'test'
+  ...
+# Subtest: gitAdd, gitCommit, gitCheckout validate inputs and sanitize parameters
+ok 155 - gitAdd, gitCommit, gitCheckout validate inputs and sanitize parameters
+  ---
+  duration_ms: 1.407748
+  type: 'test'
+  ...
+# Subtest: npmInstall validates packages and options
+ok 156 - npmInstall validates packages and options
+  ---
+  duration_ms: 0.588399
+  type: 'test'
+  ...
+# Subtest: package_install receipts require approval and dispatch to npmInstall validation
+ok 157 - package_install receipts require approval and dispatch to npmInstall validation
+  ---
+  duration_ms: 125.679066
+  type: 'test'
+  ...
+# Subtest: hatchery keeps health public while token-protecting API routes
+ok 158 - hatchery keeps health public while token-protecting API routes
+  ---
+  duration_ms: 120.475725
+  type: 'test'
+  ...
+# Subtest: hatchery job API exposes final result and tool receipt evidence
+ok 159 - hatchery job API exposes final result and tool receipt evidence
+  ---
+  duration_ms: 67.7359
+  type: 'test'
+  ...
+# Subtest: configuring a provider persists the API key durably for restart
+ok 160 - configuring a provider persists the API key durably for restart
+  ---
+  duration_ms: 96.293187
+  type: 'test'
+  ...
+# Subtest: skills API creates, lists, toggles, and deletes self-taught skills
+ok 161 - skills API creates, lists, toggles, and deletes self-taught skills
+  ---
+  duration_ms: 93.095152
+  type: 'test'
+  ...
+# Subtest: agents API surfaces live embodied agents and the task ledger
+ok 162 - agents API surfaces live embodied agents and the task ledger
+  ---
+  duration_ms: 75.274525
+  type: 'test'
+  ...
+# Subtest: agents API returns empty arrays when no runtime is attached
+ok 163 - agents API returns empty arrays when no runtime is attached
+  ---
+  duration_ms: 70.758813
+  type: 'test'
+  ...
+# Subtest: channels persist pairing-required configuration and activate after code verification
+ok 164 - channels persist pairing-required configuration and activate after code verification
+  ---
+  duration_ms: 105.25308
+  type: 'test'
+  ...
+# Subtest: channels reject wrong pairing code without activating the channel
+ok 165 - channels reject wrong pairing code without activating the channel
+  ---
+  duration_ms: 91.327653
+  type: 'test'
+  ...
+# Subtest: kill-switch endpoints engage, report, and clear the emergency stop
+ok 166 - kill-switch endpoints engage, report, and clear the emergency stop
+  ---
+  duration_ms: 86.620656
+  type: 'test'
+  ...
+# Subtest: createMastraDecider drives the loop using the agent's structured action
+ok 167 - createMastraDecider drives the loop using the agent's structured action
+  ---
+  duration_ms: 6.130378
+  type: 'test'
+  ...
+# Subtest: invalid brain output fails safely instead of throwing
+ok 168 - invalid brain output fails safely instead of throwing
+  ---
+  duration_ms: 1.422374
+  type: 'test'
+  ...
+# Subtest: buildDecisionPrompt summarizes the live observation as structured UI
+ok 169 - buildDecisionPrompt summarizes the live observation as structured UI
+  ---
+  duration_ms: 0.334013
+  type: 'test'
+  ...
+# Subtest: returns the primary result and surfaces its usage
+ok 170 - returns the primary result and surfaces its usage
+  ---
+  duration_ms: 2.730271
+  type: 'test'
+  ...
+# Subtest: fails over to the next model when the primary keeps failing
+ok 171 - fails over to the next model when the primary keeps failing
+  ---
+  duration_ms: 0.682384
+  type: 'test'
+  ...
+# Subtest: llmTimeoutMs reads HELMR_LLM_TIMEOUT_MS with a sane default
+ok 172 - llmTimeoutMs reads HELMR_LLM_TIMEOUT_MS with a sane default
+  ---
+  duration_ms: 0.29592
+  type: 'test'
+  ...
+# Subtest: audit log appends and reads JSONL records by job
+ok 173 - audit log appends and reads JSONL records by job
+  ---
+  duration_ms: 10.605816
+  type: 'test'
+  ...
+# Subtest: audit log verifies hash chains and detects tampering
+ok 174 - audit log verifies hash chains and detects tampering
+  ---
+  duration_ms: 8.757339
+  type: 'test'
+  ...
+# Subtest: backup and restore preserves SQLite state, audit chains, and config files
+ok 175 - backup and restore preserves SQLite state, audit chains, and config files
+  ---
+  duration_ms: 173.569745
+  type: 'test'
+  ...
+# Subtest: an empty mind dreams of staying warm
+ok 176 - an empty mind dreams of staying warm
+  ---
+  duration_ms: 2.369588
+  type: 'test'
+  ...
+# Subtest: dream surfaces failures as heal proposals
+ok 177 - dream surfaces failures as heal proposals
+  ---
+  duration_ms: 0.844499
+  type: 'test'
+  ...
+# Subtest: themes require recurrence, not a single mention
+ok 178 - themes require recurrence, not a single mention
+  ---
+  duration_ms: 1.105707
+  type: 'test'
+  ...
+# Subtest: DreamJournal persists and lists dreams newest-first
+ok 179 - DreamJournal persists and lists dreams newest-first
+  ---
+  duration_ms: 18.59111
+  type: 'test'
+  ...
+# Subtest: store init records the current schema version for migrations
+ok 180 - store init records the current schema version for migrations
+  ---
+  duration_ms: 77.706366
+  type: 'test'
+  ...
+# Subtest: store persists final job result and lists tool receipts for Hatchery
+ok 181 - store persists final job result and lists tool receipts for Hatchery
+  ---
+  duration_ms: 71.803671
+  type: 'test'
+  ...
+# Subtest: job status updates clear stale leases for non-running states
+ok 182 - job status updates clear stale leases for non-running states
+  ---
+  duration_ms: 64.480112
+  type: 'test'
+  ...
+# Subtest: durable store claims queued jobs by priority and records a lease
+ok 183 - durable store claims queued jobs by priority and records a lease
+  ---
+  duration_ms: 82.391545
+  type: 'test'
+  ...
+# Subtest: durable store reclaims expired running jobs but skips active leases
+ok 184 - durable store reclaims expired running jobs but skips active leases
+  ---
+  duration_ms: 82.547083
+  type: 'test'
+  ...
+# Subtest: control flags persist and toggle (durable kill-switch backing)
+ok 185 - control flags persist and toggle (durable kill-switch backing)
+  ---
+  duration_ms: 77.636776
+  type: 'test'
+  ...
+# Subtest: store round-trips the channel reply address (reply_to) for outbound delivery
+ok 186 - store round-trips the channel reply address (reply_to) for outbound delivery
+  ---
+  duration_ms: 64.610848
+  type: 'test'
+  ...
+# Subtest: returns the first successful attempt without trying later ones
+ok 187 - returns the first successful attempt without trying later ones
+  ---
+  duration_ms: 2.231943
+  type: 'test'
+  ...
+# Subtest: fails over to the next attempt when the first exhausts its retries
+ok 188 - fails over to the next attempt when the first exhausts its retries
+  ---
+  duration_ms: 0.858559
+  type: 'test'
+  ...
+# Subtest: does not retry a non-transient error within an attempt
+ok 189 - does not retry a non-transient error within an attempt
+  ---
+  duration_ms: 2.301488
+  type: 'test'
+  ...
+# Subtest: throws FailoverError aggregating all failures when every attempt fails
+ok 190 - throws FailoverError aggregating all failures when every attempt fails
+  ---
+  duration_ms: 1.255572
+  type: 'test'
+  ...
+# Subtest: per-attempt timeout aborts a hung attempt and fails over
+ok 191 - per-attempt timeout aborts a hung attempt and fails over
+  ---
+  duration_ms: 21.057955
+  type: 'test'
+  ...
+# Subtest: isTransientError classifies network/rate/5xx as retryable and 4xx as not
+ok 192 - isTransientError classifies network/rate/5xx as retryable and 4xx as not
+  ---
+  duration_ms: 0.818489
+  type: 'test'
+  ...
+# Subtest: onError fires for every failed try
+ok 193 - onError fires for every failed try
+  ---
+  duration_ms: 0.760567
+  type: 'test'
+  ...
+# Subtest: defaults to not halted
+ok 194 - defaults to not halted
+  ---
+  duration_ms: 1.454299
+  type: 'test'
+  ...
+# Subtest: halt/resume toggles the global switch durably
+ok 195 - halt/resume toggles the global switch durably
+  ---
+  duration_ms: 0.945345
+  type: 'test'
+  ...
+# Subtest: global halt dominates a per-agent check
+ok 196 - global halt dominates a per-agent check
+  ---
+  duration_ms: 0.424015
+  type: 'test'
+  ...
+# Subtest: per-agent halt does not affect other agents or global
+ok 197 - per-agent halt does not affect other agents or global
+  ---
+  duration_ms: 0.432865
+  type: 'test'
+  ...
+# Subtest: cache avoids a DB read on every hot-path check
+ok 198 - cache avoids a DB read on every hot-path check
+  ---
+  duration_ms: 0.346948
+  type: 'test'
+  ...
+# Subtest: listHalted reports only engaged scopes
+ok 199 - listHalted reports only engaged scopes
+  ---
+  duration_ms: 1.400334
+  type: 'test'
+  ...
+# Subtest: KillSwitchEngagedError carries the scope
+ok 200 - KillSwitchEngagedError carries the scope
+  ---
+  duration_ms: 0.556838
+  type: 'test'
+  ...
+# Subtest: job queue claims queued work and completes it
+ok 201 - job queue claims queued work and completes it
+  ---
+  duration_ms: 4.9836
+  type: 'test'
+  ...
+# Subtest: queue refuses retry beyond max attempts
+ok 202 - queue refuses retry beyond max attempts
+  ---
+  duration_ms: 0.765149
+  type: 'test'
+  ...
+# Subtest: failed running jobs requeue until retry attempts are exhausted
+ok 203 - failed running jobs requeue until retry attempts are exhausted
+  ---
+  duration_ms: 0.527431
+  type: 'test'
+  ...
+# Subtest: expired leases are claimable again
+ok 204 - expired leases are claimable again
+  ---
+  duration_ms: 0.264787
+  type: 'test'
+  ...
+# Subtest: heartbeat extends active leases and rejects expired leases
+ok 205 - heartbeat extends active leases and rejects expired leases
+  ---
+  duration_ms: 2.62221
+  type: 'test'
+  ...
+# Subtest: requeues an active job whose lease expired past the grace window
+ok 206 - requeues an active job whose lease expired past the grace window
+  ---
+  duration_ms: 3.620002
+  type: 'test'
+  ...
+# Subtest: fails a stuck job once its retry budget is exhausted
+ok 207 - fails a stuck job once its retry budget is exhausted
+  ---
+  duration_ms: 0.684475
+  type: 'test'
+  ...
+# Subtest: does not touch a running job whose lease is still valid
+ok 208 - does not touch a running job whose lease is still valid
+  ---
+  duration_ms: 0.743723
+  type: 'test'
+  ...
+# Subtest: reasoning failures are re-planned, not blindly retried
+ok 209 - reasoning failures are re-planned, not blindly retried
+  ---
+  duration_ms: 2.59212
+  type: 'test'
+  ...
+# Subtest: circuit opens after repeated failed heals and escalates without retrying
+ok 210 - circuit opens after repeated failed heals and escalates without retrying
+  ---
+  duration_ms: 1.103065
+  type: 'test'
+  ...
+# Subtest: escalates incidents that no remediation can handle
+ok 211 - escalates incidents that no remediation can handle
+  ---
+  duration_ms: 2.366888
+  type: 'test'
+  ...
+# Subtest: a remediation that throws is surfaced as an escalated error, not a crash
+ok 212 - a remediation that throws is surfaced as an escalated error, not a crash
+  ---
+  duration_ms: 1.176823
+  type: 'test'
+  ...
+# Subtest: hybrid analyzer refines the diagnosis and feeds the knowledge sink
+ok 213 - hybrid analyzer refines the diagnosis and feeds the knowledge sink
+  ---
+  duration_ms: 0.798605
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager allows multiple readers and blocks writers
+ok 214 - SqliteWorkspaceLockManager allows multiple readers and blocks writers
+  ---
+  duration_ms: 35.193702
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager serializes concurrent writers (only one wins)
+ok 215 - SqliteWorkspaceLockManager serializes concurrent writers (only one wins)
+  ---
+  duration_ms: 22.225833
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager release frees the lock for a waiting writer
+ok 216 - SqliteWorkspaceLockManager release frees the lock for a waiting writer
+  ---
+  duration_ms: 22.091844
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager expires stale locks based on ttl
+ok 217 - SqliteWorkspaceLockManager expires stale locks based on ttl
+  ---
+  duration_ms: 21.167832
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager renew extends ttl on an active lock
+ok 218 - SqliteWorkspaceLockManager renew extends ttl on an active lock
+  ---
+  duration_ms: 17.919864
+  type: 'test'
+  ...
+# Subtest: SqliteWorkspaceLockManager state survives reopening the same DB (cross-process simulation)
+ok 219 - SqliteWorkspaceLockManager state survives reopening the same DB (cross-process simulation)
+  ---
+  duration_ms: 16.948619
+  type: 'test'
+  ...
+# Subtest: WorkspaceLockManager
+    # Subtest: allows multiple readers in the same workspace
+    ok 1 - allows multiple readers in the same workspace
+      ---
+      duration_ms: 1.872023
+      type: 'test'
+      ...
+    # Subtest: blocks writers while readers are active
+    ok 2 - blocks writers while readers are active
+      ---
+      duration_ms: 2.412463
+      type: 'test'
+      ...
+    # Subtest: blocks readers and writers while a writer is active
+    ok 3 - blocks readers and writers while a writer is active
+      ---
+      duration_ms: 0.378386
+      type: 'test'
+      ...
+    # Subtest: blocks all other locks while an exclusive lock is active
+    ok 4 - blocks all other locks while an exclusive lock is active
+      ---
+      duration_ms: 0.277851
+      type: 'test'
+      ...
+    # Subtest: allows conflicting locks after the active lock is released
+    ok 5 - allows conflicting locks after the active lock is released
+      ---
+      duration_ms: 0.33303
+      type: 'test'
+      ...
+    # Subtest: releasing one duplicate owner lock keeps the remaining lock active
+    ok 6 - releasing one duplicate owner lock keeps the remaining lock active
+      ---
+      duration_ms: 0.270387
+      type: 'test'
+      ...
+    # Subtest: isolates locks by workspace
+    ok 7 - isolates locks by workspace
+      ---
+      duration_ms: 0.305423
+      type: 'test'
+      ...
+    1..7
+ok 220 - WorkspaceLockManager
+  ---
+  duration_ms: 7.891372
+  type: 'suite'
+  ...
+# Subtest: clears stale locks and allows waiting writers to acquire
+ok 221 - clears stale locks and allows waiting writers to acquire
+  ---
+  duration_ms: 0.776963
+  type: 'test'
+  ...
+# Subtest: valid HelmrEvent parses and unknown capabilities fail
+ok 222 - valid HelmrEvent parses and unknown capabilities fail
+  ---
+  duration_ms: 10.084871
+  type: 'test'
+  ...
+# Subtest: HelmrJob enforces lease and retry invariants
+ok 223 - HelmrJob enforces lease and retry invariants
+  ---
+  duration_ms: 2.320299
+  type: 'test'
+  ...
+# Subtest: unsafe HelmrPlan cannot be low risk without approval
+ok 224 - unsafe HelmrPlan cannot be low risk without approval
+  ---
+  duration_ms: 1.793469
+  type: 'test'
+  ...
+# Subtest: ToolReceipt requires approval for gated capabilities
+ok 225 - ToolReceipt requires approval for gated capabilities
+  ---
+  duration_ms: 1.018388
+  type: 'test'
+  ...
+# Subtest: shared typed error helpers
+    # Subtest: creates validation errors with stable machine fields
+    ok 1 - creates validation errors with stable machine fields
+      ---
+      duration_ms: 2.043079
+      type: 'test'
+      ...
+    # Subtest: creates policy denial errors with policy context
+    ok 2 - creates policy denial errors with policy context
+      ---
+      duration_ms: 0.361098
+      type: 'test'
+      ...
+    # Subtest: creates lock conflict errors with resource ownership context
+    ok 3 - creates lock conflict errors with resource ownership context
+      ---
+      duration_ms: 1.895852
+      type: 'test'
+      ...
+    # Subtest: creates tool failure errors with the original cause
+    ok 4 - creates tool failure errors with the original cause
+      ---
+      duration_ms: 0.335023
+      type: 'test'
+      ...
+    # Subtest: identifies and serializes shared errors safely
+    ok 5 - identifies and serializes shared errors safely
+      ---
+      duration_ms: 0.506614
+      type: 'test'
+      ...
+    1..5
+ok 226 - shared typed error helpers
+  ---
+  duration_ms: 6.888584
+  type: 'suite'
+  ...
+# Subtest: API auth allows health checks without a token
+ok 227 - API auth allows health checks without a token
+  ---
+  duration_ms: 1.262244
+  type: 'test'
+  ...
+# Subtest: API auth allows no-token development only with explicit local override
+ok 228 - API auth allows no-token development only with explicit local override
+  ---
+  duration_ms: 0.396665
+  type: 'test'
+  ...
+# Subtest: API auth rejects production requests when token is missing
+ok 229 - API auth rejects production requests when token is missing
+  ---
+  duration_ms: 1.091251
+  type: 'test'
+  ...
+# Subtest: API auth rejects protected requests when bearer token is missing or wrong
+ok 230 - API auth rejects protected requests when bearer token is missing or wrong
+  ---
+  duration_ms: 0.348201
+  type: 'test'
+  ...
+# Subtest: API auth accepts the configured bearer token
+ok 231 - API auth accepts the configured bearer token
+  ---
+  duration_ms: 0.219381
+  type: 'test'
+  ...
+# Subtest: API auth keeps OPTIONS safe in production and permissive only in explicit dev mode
+ok 232 - API auth keeps OPTIONS safe in production and permissive only in explicit dev mode
+  ---
+  duration_ms: 0.20214
+  type: 'test'
+  ...
+# Subtest: safe token comparison rejects mismatches without throwing on length differences
+ok 233 - safe token comparison rejects mismatches without throwing on length differences
+  ---
+  duration_ms: 0.290682
+  type: 'test'
+  ...
+# Subtest: content length limit allows missing or valid lengths
+ok 234 - content length limit allows missing or valid lengths
+  ---
+  duration_ms: 2.008616
+  type: 'test'
+  ...
+# Subtest: content length limit rejects invalid and oversized lengths
+ok 235 - content length limit rejects invalid and oversized lengths
+  ---
+  duration_ms: 0.334991
+  type: 'test'
+  ...
+# Subtest: security headers include baseline browser protections
+ok 236 - security headers include baseline browser protections
+  ---
+  duration_ms: 1.37484
+  type: 'test'
+  ...
+# Subtest: allowed origins default to local Hatchery origin
+ok 237 - allowed origins default to local Hatchery origin
+  ---
+  duration_ms: 1.031208
+  type: 'test'
+  ...
+# Subtest: allowed origins parse comma-separated config
+ok 238 - allowed origins parse comma-separated config
+  ---
+  duration_ms: 0.240206
+  type: 'test'
+  ...
+# Subtest: origin matching only allows configured origins
+ok 239 - origin matching only allows configured origins
+  ---
+  duration_ms: 0.214561
+  type: 'test'
+  ...
+# Subtest: architecture packages have package manifests
+ok 240 - architecture packages have package manifests
+  ---
+  duration_ms: 18.573955
+  type: 'test'
+  ...
+# Subtest: fixed-window limiter allows requests up to the limit
+ok 241 - fixed-window limiter allows requests up to the limit
+  ---
+  duration_ms: 2.149111
+  type: 'test'
+  ...
+# Subtest: fixed-window limiter rejects requests beyond the limit
+ok 242 - fixed-window limiter rejects requests beyond the limit
+  ---
+  duration_ms: 0.295502
+  type: 'test'
+  ...
+# Subtest: fixed-window limiter resets after the window
+ok 243 - fixed-window limiter resets after the window
+  ---
+  duration_ms: 0.295576
+  type: 'test'
+  ...
+# Subtest: redacts known token formats, assignments, private keys, and high entropy strings
+ok 244 - redacts known token formats, assignments, private keys, and high entropy strings
+  ---
+  duration_ms: 2.065405
+  type: 'test'
+  ...
+# Subtest: request id uses a safe incoming id when present
+ok 245 - request id uses a safe incoming id when present
+  ---
+  duration_ms: 1.493182
+  type: 'test'
+  ...
+# Subtest: request id rejects unsafe incoming ids and generates a safe fallback
+ok 246 - request id rejects unsafe incoming ids and generates a safe fallback
+  ---
+  duration_ms: 0.836034
+  type: 'test'
+  ...
+# Subtest: request id generates a safe fallback when missing
+ok 247 - request id generates a safe fallback when missing
+  ---
+  duration_ms: 0.263133
+  type: 'test'
+  ...
+# Subtest: Helmr contract schemas
+    # Subtest: accepts a valid HelmrEvent contract
+    ok 1 - accepts a valid HelmrEvent contract
+      ---
+      duration_ms: 10.750282
+      type: 'test'
+      ...
+    # Subtest: rejects a HelmrEvent with an unknown source
+    ok 2 - rejects a HelmrEvent with an unknown source
+      ---
+      duration_ms: 1.376251
+      type: 'test'
+      ...
+    # Subtest: accepts HelmrJob lifecycle fields
+    ok 3 - accepts HelmrJob lifecycle fields
+      ---
+      duration_ms: 1.491138
+      type: 'test'
+      ...
+    # Subtest: accepts HelmrPlan with plan steps and capabilities
+    ok 4 - accepts HelmrPlan with plan steps and capabilities
+      ---
+      duration_ms: 1.551523
+      type: 'test'
+      ...
+    # Subtest: accepts ToolReceipt risk and approval states
+    ok 5 - accepts ToolReceipt risk and approval states
+      ---
+      duration_ms: 0.927488
+      type: 'test'
+      ...
+    # Subtest: rejects unknown capabilities
+    ok 6 - rejects unknown capabilities
+      ---
+      duration_ms: 0.369866
+      type: 'test'
+      ...
+    1..6
+ok 248 - Helmr contract schemas
+  ---
+  duration_ms: 18.229176
+  type: 'suite'
+  ...
+# Subtest: write persists a skill and list auto-discovers it
+ok 249 - write persists a skill and list auto-discovers it
+  ---
+  duration_ms: 20.54275
+  type: 'test'
+  ...
+# Subtest: write preserves createdAt across updates and refreshes updatedAt
+ok 250 - write preserves createdAt across updates and refreshes updatedAt
+  ---
+  duration_ms: 12.182353
+  type: 'test'
+  ...
+# Subtest: setEnabled toggles a skill and remove deletes it
+ok 251 - setEnabled toggles a skill and remove deletes it
+  ---
+  duration_ms: 7.975428
+  type: 'test'
+  ...
+# Subtest: list skips malformed skill files instead of crashing
+ok 252 - list skips malformed skill files instead of crashing
+  ---
+  duration_ms: 5.314045
+  type: 'test'
+  ...
+# Subtest: list returns empty array when the skills directory is absent
+ok 253 - list returns empty array when the skills directory is absent
+  ---
+  duration_ms: 2.564466
+  type: 'test'
+  ...
+# Subtest: matchSkills returns enabled skills whose triggers appear in the text
+ok 254 - matchSkills returns enabled skills whose triggers appear in the text
+  ---
+  duration_ms: 1.181348
+  type: 'test'
+  ...
+# Subtest: parseSkillManifest rejects ids that are not lower-case slugs
+ok 255 - parseSkillManifest rejects ids that are not lower-case slugs
+  ---
+  duration_ms: 1.780119
+  type: 'test'
+  ...
+# Subtest: load refreshes the cached snapshot from disk
+ok 256 - load refreshes the cached snapshot from disk
+  ---
+  duration_ms: 6.837465
+  type: 'test'
+  ...
+# Subtest: watch performs an initial load, populates the cache, and is stoppable
+ok 257 - watch performs an initial load, populates the cache, and is stoppable
+  ---
+  duration_ms: 12.161492
+  type: 'test'
+  ...
+# Subtest: architecture package stubs expose safe defaults
+ok 258 - architecture package stubs expose safe defaults
+  ---
+  duration_ms: 2.394031
+  type: 'test'
+  ...
+# Subtest: starter channels are explicit about implemented vs placeholder status
+ok 259 - starter channels are explicit about implemented vs placeholder status
+  ---
+  duration_ms: 4.092877
+  type: 'test'
+  ...
+# Subtest: Gateway protocol validates typed envelopes and side-effect idempotency
+ok 260 - Gateway protocol validates typed envelopes and side-effect idempotency
+  ---
+  duration_ms: 7.85899
+  type: 'test'
+  ...
+# Subtest: Gateway protocol creates typed errors
+ok 261 - Gateway protocol creates typed errors
+  ---
+  duration_ms: 1.016599
+  type: 'test'
+  ...
+# Subtest: plugin SDK validates manifests and runs health hooks
+ok 262 - plugin SDK validates manifests and runs health hooks
+  ---
+  duration_ms: 3.789946
+  type: 'test'
+  ...
+# Subtest: starter providers cover BYOAK onboarding providers
+ok 263 - starter providers cover BYOAK onboarding providers
+  ---
+  duration_ms: 7.187586
+  type: 'test'
+  ...
+# Subtest: governor requires approval, denies kill-switch and budget overruns
+ok 264 - governor requires approval, denies kill-switch and budget overruns
+  ---
+  duration_ms: 1.596732
+  type: 'test'
+  ...
+# Subtest: runtime supports idempotency, lease retry, pause/resume/cancel and audit tamper detection
+ok 265 - runtime supports idempotency, lease retry, pause/resume/cancel and audit tamper detection
+  ---
+  duration_ms: 1.335049
+  type: 'test'
+  ...
+# Subtest: built-in starter skills satisfy the expanded Helmr skill manifest contract
+ok 266 - built-in starter skills satisfy the expanded Helmr skill manifest contract
+  ---
+  duration_ms: 25.110876
+  type: 'test'
+  ...
+# Subtest: Gateway intake queues a job with explicit development auth override
+ok 267 - Gateway intake queues a job with explicit development auth override
+  ---
+  duration_ms: 98.460987
+  type: 'test'
+  ...
+# Subtest: combined daemon writes pid records for gateway and hatchery
+ok 268 - combined daemon writes pid records for gateway and hatchery
+  ---
+  duration_ms: 1.9918
+  type: 'test'
+  ...
+# Subtest: pid records preserve ports for status output and still read legacy pid files
+ok 269 - pid records preserve ports for status output and still read legacy pid files
+  ---
+  duration_ms: 0.472342
+  type: 'test'
+  ...
+# Subtest: self-test terminal output is ascii-safe
+ok 270 - self-test terminal output is ascii-safe
+  ---
+  duration_ms: 0.572866
+  type: 'test'
+  ...
+# Subtest: formatReport summarizes health and surfaces failures
+ok 271 - formatReport summarizes health and surfaces failures
+  ---
+  duration_ms: 5.330614
+  type: 'test'
+  ...
+# Subtest: collectChecks reports a healthy baseline on a fresh state dir
+ok 272 - collectChecks reports a healthy baseline on a fresh state dir
+  ---
+  duration_ms: 304.952248
+  type: 'test'
+  ...
+# Subtest: collectChecks flags an exhausted daily budget as fail
+ok 273 - collectChecks flags an exhausted daily budget as fail
+  ---
+  duration_ms: 16.1673
+  type: 'test'
+  ...
+# Subtest: collectChecks detects a tampered audit chain as fail
+ok 274 - collectChecks detects a tampered audit chain as fail
+  ---
+  duration_ms: 9.427655
+  type: 'test'
+  ...
+# Subtest: e2e: a read-only job runs end-to-end and leaves a verifiable audit trail
+ok 275 - e2e: a read-only job runs end-to-end and leaves a verifiable audit trail
+  ---
+  duration_ms: 258.082246
+  type: 'test'
+  ...
+# Subtest: e2e: a tampered audit record is detected by the hash-chain verifier
+ok 276 - e2e: a tampered audit record is detected by the hash-chain verifier
+  ---
+  duration_ms: 66.351653
+  type: 'test'
+  ...
+# Subtest: live LLM: council produces a schema-valid structured plan
+ok 277 - live LLM: council produces a schema-valid structured plan # SKIP no model API key configured — set ANTHROPIC_API_KEY (or another provider key) to run the live smoke test
+  ---
+  duration_ms: 1.167491
+  type: 'test'
+  ...
+# Subtest: live LLM: token usage converts to a non-zero USD cost
+ok 278 - live LLM: token usage converts to a non-zero USD cost # SKIP no model API key configured — set ANTHROPIC_API_KEY (or another provider key) to run the live smoke test
+  ---
+  duration_ms: 0.186552
+  type: 'test'
+  ...
+# Subtest: local planner creates a safe read-only workspace summary plan
+ok 279 - local planner creates a safe read-only workspace summary plan
+  ---
+  duration_ms: 2.721745
+  type: 'test'
+  ...
+# Subtest: local synthesizer returns concrete workspace observations and next steps
+ok 280 - local synthesizer returns concrete workspace observations and next steps
+  ---
+  duration_ms: 0.881412
+  type: 'test'
+  ...
+# Subtest: local planner builds dynamic read-only steps from file and git history requests
+ok 281 - local planner builds dynamic read-only steps from file and git history requests
+  ---
+  duration_ms: 2.834255
+  type: 'test'
+  ...
+# Subtest: requested file extraction is deterministic and rejects unsafe paths
+ok 282 - requested file extraction is deterministic and rejects unsafe paths
+  ---
+  duration_ms: 0.345456
+  type: 'test'
+  ...
+# Subtest: local fallback is used when no model provider key or explicit model is configured
+ok 283 - local fallback is used when no model provider key or explicit model is configured
+  ---
+  duration_ms: 0.349642
+  type: 'test'
+  ...
+# Subtest: read-only command and git steps do not require the coding agent
+ok 284 - read-only command and git steps do not require the coding agent
+  ---
+  duration_ms: 0.422351
+  type: 'test'
+  ...
+# Subtest: orchestrateSwarm spawns one embodied agent per subtask and merges results
+ok 285 - orchestrateSwarm spawns one embodied agent per subtask and merges results
+  ---
+  duration_ms: 6.168742
+  type: 'test'
+  ...
+# Subtest: orchestrateSwarm can keep agents alive for the live Agents view
+ok 286 - orchestrateSwarm can keep agents alive for the live Agents view
+  ---
+  duration_ms: 0.802233
+  type: 'test'
+  ...
+# Subtest: getAgentRuntime is a process singleton (orchestrator and Hatchery share it)
+ok 287 - getAgentRuntime is a process singleton (orchestrator and Hatchery share it)
+  ---
+  duration_ms: 0.421003
+  type: 'test'
+  ...
+# Subtest: default workspace provider is the mock provider unless browser is selected
+ok 288 - default workspace provider is the mock provider unless browser is selected
+  ---
+  duration_ms: 0.251131
+  type: 'test'
+  ...
+# Subtest: looksLikeParallelResearch recognizes multi-target research requests
+ok 289 - looksLikeParallelResearch recognizes multi-target research requests
+  ---
+  duration_ms: 0.617512
+  type: 'test'
+  ...
+# Subtest: Helmr paths default to the local user state directory
+ok 290 - Helmr paths default to the local user state directory
+  ---
+  duration_ms: 1.313706
+  type: 'test'
+  ...
+# Subtest: Helmr paths honor explicit enterprise state directories
+ok 291 - Helmr paths honor explicit enterprise state directories
+  ---
+  duration_ms: 0.429994
+  type: 'test'
+  ...
+# Subtest: production readiness passes without API token outside production mode
+ok 292 - production readiness passes without API token outside production mode
+  ---
+  duration_ms: 2.225612
+  type: 'test'
+  ...
+# Subtest: production readiness requires enterprise security settings in production mode
+ok 293 - production readiness requires enterprise security settings in production mode
+  ---
+  duration_ms: 0.577089
+  type: 'test'
+  ...
+# Subtest: production readiness accepts hardened production settings
+ok 294 - production readiness accepts hardened production settings
+  ---
+  duration_ms: 0.426256
+  type: 'test'
+  ...
+# Subtest: production readiness rejects wildcard origins and unsafe request limits
+ok 295 - production readiness rejects wildcard origins and unsafe request limits
+  ---
+  duration_ms: 2.071428
+  type: 'test'
+  ...
+# Subtest: production readiness reports parse failure when integer envs are non-numeric
+ok 296 - production readiness reports parse failure when integer envs are non-numeric
+  ---
+  duration_ms: 0.345603
+  type: 'test'
+  ...
+# Subtest: production readiness rejects partial wildcard subdomain patterns in origins
+ok 297 - production readiness rejects partial wildcard subdomain patterns in origins
+  ---
+  duration_ms: 0.316657
+  type: 'test'
+  ...
+# Subtest: runJob completes the local read-only agent loop and persists Hatchery evidence
+ok 298 - runJob completes the local read-only agent loop and persists Hatchery evidence
+  ---
+  duration_ms: 246.405718
+  type: 'test'
+  ...
+# Subtest: runJob auto-routes a wide research request into a persisted swarm
+ok 299 - runJob auto-routes a wide research request into a persisted swarm
+  ---
+  duration_ms: 116.335937
+  type: 'test'
+  ...
+# Subtest: integration: a read-only runJob runs end-to-end and consults the standing policy
+ok 300 - integration: a read-only runJob runs end-to-end and consults the standing policy
+  ---
+  duration_ms: 277.472684
+  type: 'test'
+  ...
+# Subtest: integration: the runtime budget ledger trips the first guarded call when the daily cap is exceeded
+ok 301 - integration: the runtime budget ledger trips the first guarded call when the daily cap is exceeded
+  ---
+  duration_ms: 4.078888
+  type: 'test'
+  ...
+# Subtest: integration: checkpoint + gate + rollback compose across a write lifecycle
+ok 302 - integration: checkpoint + gate + rollback compose across a write lifecycle
+  ---
+  duration_ms: 54.181772
+  type: 'test'
+  ...
+# Subtest: self-test reports gateway and hatchery URL hints without model checks
+ok 303 - self-test reports gateway and hatchery URL hints without model checks
+  ---
+  duration_ms: 2.122583
+  type: 'test'
+  ...
+# Subtest: self-test includes git, writable state directories, and URL hint checks
+ok 304 - self-test includes git, writable state directories, and URL hint checks
+  ---
+  duration_ms: 880.193634
+  type: 'test'
+  ...
+# Subtest: service install plans render Windows and WSL2 commands without executing them
+ok 305 - service install plans render Windows and WSL2 commands without executing them
+  ---
+  duration_ms: 2.279624
+  type: 'test'
+  ...
+# Subtest: installHelmrService writes only the WSL2 user unit file and supports dry-run
+ok 306 - installHelmrService writes only the WSL2 user unit file and supports dry-run
+  ---
+  duration_ms: 12.630535
+  type: 'test'
+  ...
+# Subtest: the real soul.md loads and contains its core sections
+ok 307 - the real soul.md loads and contains its core sections
+  ---
+  duration_ms: 3.370769
+  type: 'test'
+  ...
+# Subtest: SoulLoader reads an explicit soul file
+ok 308 - SoulLoader reads an explicit soul file
+  ---
+  duration_ms: 10.30601
+  type: 'test'
+  ...
+# Subtest: SoulLoader fails safely when soul.md is missing — no throw, clear error
+ok 309 - SoulLoader fails safely when soul.md is missing — no throw, clear error
+  ---
+  duration_ms: 0.521808
+  type: 'test'
+  ...
+# Subtest: SoulLoader treats an empty soul.md as not found
+ok 310 - SoulLoader treats an empty soul.md as not found
+  ---
+  duration_ms: 5.203984
+  type: 'test'
+  ...
+# Subtest: resolveSoulPath honors HELMR_SOUL_PATH override
+ok 311 - resolveSoulPath honors HELMR_SOUL_PATH override
+  ---
+  duration_ms: 1.034253
+  type: 'test'
+  ...
+# Subtest: buildSoulContext wraps the constitution for prompt injection
+ok 312 - buildSoulContext wraps the constitution for prompt injection
+  ---
+  duration_ms: 0.26423
+  type: 'test'
+  ...
+# Subtest: looksLikeParallelResearch detects wide research and rejects coding/simple requests
+ok 313 - looksLikeParallelResearch detects wide research and rejects coding/simple requests
+  ---
+  duration_ms: 4.125356
+  type: 'test'
+  ...
+# Subtest: decomposeRequest splits explicit lists and fans broad questions into angles
+ok 314 - decomposeRequest splits explicit lists and fans broad questions into angles
+  ---
+  duration_ms: 1.641714
+  type: 'test'
+  ...
+# Subtest: resolveSubtasks falls back to the heuristic without a model provider
+ok 315 - resolveSubtasks falls back to the heuristic without a model provider
+  ---
+  duration_ms: 0.588313
+  type: 'test'
+  ...
+# Subtest: createSwarmPlan produces a low-risk read-only plan mirroring subtasks
+ok 316 - createSwarmPlan produces a low-risk read-only plan mirroring subtasks
+  ---
+  duration_ms: 0.65308
+  type: 'test'
+  ...
+# Subtest: orchestrateSwarm fans out, persists every subtask, and synthesizes (local fallback)
+ok 317 - orchestrateSwarm fans out, persists every subtask, and synthesizes (local fallback)
+  ---
+  duration_ms: 135.310888
+  type: 'test'
+  ...
+# Subtest: deployment verification fails closed without explicit production secrets and paths
+ok 318 - deployment verification fails closed without explicit production secrets and paths
+  ---
+  duration_ms: 1.520603
+  type: 'test'
+  ...
+# Subtest: deployment verification rejects weak tokens and wildcard origins
+ok 319 - deployment verification rejects weak tokens and wildcard origins
+  ---
+  duration_ms: 0.340937
+  type: 'test'
+  ...
+# Subtest: deployment verification rejects wildcard origins inside a list
+ok 320 - deployment verification rejects wildcard origins inside a list
+  ---
+  duration_ms: 0.225628
+  type: 'test'
+  ...
+# Subtest: deployment verification accepts HELMR_AUDIT_DIR in place of HELMR_AUDIT_LOG
+ok 321 - deployment verification accepts HELMR_AUDIT_DIR in place of HELMR_AUDIT_LOG
+  ---
+  duration_ms: 1.546418
+  type: 'test'
+  ...
+# Subtest: deployment verification fails when no audit location is configured
+ok 322 - deployment verification fails when no audit location is configured
+  ---
+  duration_ms: 0.374067
+  type: 'test'
+  ...
+# Subtest: deployment verification passes with explicit hardened settings
+ok 323 - deployment verification passes with explicit hardened settings
+  ---
+  duration_ms: 0.198927
+  type: 'test'
+  ...
+1..323
+# tests 340
+# suites 4
+# pass 338
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms 7492.195746
+
+> helmr@1.0.0 test:contracts
+> npm run build:ts && node --test "dist/qa/contracts/**/*.test.js"
+
+
+> helmr@1.0.0 build:ts
+> tsc
+
+TAP version 13
+# Subtest: starter channels are explicit about implemented vs placeholder status
+ok 1 - starter channels are explicit about implemented vs placeholder status
+  ---
+  duration_ms: 3.967463
+  type: 'test'
+  ...
+# Subtest: Gateway protocol validates typed envelopes and side-effect idempotency
+ok 2 - Gateway protocol validates typed envelopes and side-effect idempotency
+  ---
+  duration_ms: 7.265077
+  type: 'test'
+  ...
+# Subtest: Gateway protocol creates typed errors
+ok 3 - Gateway protocol creates typed errors
+  ---
+  duration_ms: 1.009567
+  type: 'test'
+  ...
+# Subtest: plugin SDK validates manifests and runs health hooks
+ok 4 - plugin SDK validates manifests and runs health hooks
+  ---
+  duration_ms: 3.946248
+  type: 'test'
+  ...
+# Subtest: starter providers cover BYOAK onboarding providers
+ok 5 - starter providers cover BYOAK onboarding providers
+  ---
+  duration_ms: 7.408437
+  type: 'test'
+  ...
+# Subtest: governor requires approval, denies kill-switch and budget overruns
+ok 6 - governor requires approval, denies kill-switch and budget overruns
+  ---
+  duration_ms: 1.275112
+  type: 'test'
+  ...
+# Subtest: runtime supports idempotency, lease retry, pause/resume/cancel and audit tamper detection
+ok 7 - runtime supports idempotency, lease retry, pause/resume/cancel and audit tamper detection
+  ---
+  duration_ms: 1.384098
+  type: 'test'
+  ...
+# Subtest: built-in starter skills satisfy the expanded Helmr skill manifest contract
+ok 8 - built-in starter skills satisfy the expanded Helmr skill manifest contract
+  ---
+  duration_ms: 19.670684
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 427.419094
