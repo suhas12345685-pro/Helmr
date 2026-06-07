@@ -96,7 +96,9 @@ export class SignalAdapter implements ChannelAdapter {
     while (this.polling) {
       try {
         const envelopes = await this.receive();
-        for (const envelope of envelopes) await this.handleEnvelope(envelope);
+        // ⚡ Bolt: Process independent incoming Signal messages concurrently instead of sequentially
+        // to reduce total latency when receiving multiple messages in a single poll.
+        await Promise.all(envelopes.map(envelope => this.handleEnvelope(envelope)));
       } catch {
         await new Promise((r) => setTimeout(r, 5000));
       }

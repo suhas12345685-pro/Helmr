@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-06-07 - Sequential envelope processing bottleneck in SignalAdapter
+**Learning:** Processing independent incoming channel messages (envelopes) sequentially in a `for...of` loop within a poll loop creates unnecessary latency and blocks the event pipeline for subsequent messages.
+**Action:** Use `Promise.all` mapping over the array to dispatch independent message handler promises concurrently to improve polling throughput and reduce perceived response times.
