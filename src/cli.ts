@@ -17,11 +17,7 @@ Helmr - AI agent orchestration system
 
 Usage:
   helmr ask <text>            Run a job with the given text request
-      claude/lucid-dijkstra-i2aYM
-  helmr swarm <text>          Fan a wide research request out to a parallel swarm
- 
   helmr swarm <subtasks>      Spawn parallel embodied agents (subtasks split by ";")
-        main
   helmr onboard               Onboard and set up a new Helmr installation
   helmr status                Show runtime status
   helmr self-test             Run system health checks
