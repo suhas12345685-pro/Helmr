@@ -1058,20 +1058,32 @@ helmr-agent:
 
 ### 15.2 User Install Commands
 
-Primary first-run command:
+Primary first-run commands:
 
-```powershell
-npm create helmr@latest
+**1. npm**
+```bash
+npm i -g helmr
+```
+or with pnpm:
+```bash
+pnpm i -g helmr
 ```
 
-OpenClaw-style one-liner alternatives:
+**2. oneliners**
 
+Windows:
 ```powershell
 powershell -c "irm https://helmr.ai/install.ps1 | iex"
 ```
 
+macOS and Linux:
 ```bash
 curl -fsSL https://helmr.ai/install.sh | bash
+```
+
+# Meet your lobster
+```bash
+helmr onboard
 ```
 
 These scripts should be thin wrappers around the same installer logic. They should detect the OS, verify Node.js/npm, install or invoke `create-helmr@latest`, start Gateway/Hatchery, and then open Hatchery onboarding. They must print what they are about to do before making changes, and they must support a dry run:
