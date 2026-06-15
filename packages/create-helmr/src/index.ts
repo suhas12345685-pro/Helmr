@@ -212,7 +212,7 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
   }
 
   deps.log('\nInstalling Helmr CLI...');
-  const installCmd = pkgMgr === 'pnpm' ? 'pnpm add -g helmr' : 'npm i -g helmr';
+  const installCmd = pkgMgr === 'pnpm' ? 'pnpm add -g helmr' : 'npm install -g helmr';
   if (options.dryRun) {
     check('would install helmr CLI globally', true, installCmd, deps);
   } else {
