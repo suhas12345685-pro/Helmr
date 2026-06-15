@@ -79,7 +79,7 @@ test('dry-run prints intended actions without filesystem, install, prompt, or da
   });
 
   assert.equal(code, 0);
-  assert.deepEqual(calls, ['optional:pnpm --version', 'optional:npm --version']);
+  assert.deepEqual(calls, ['optional:npm --version']);
   assert.match(logs.join('\n'), /Dry run mode/);
   assert.match(logs.join('\n'), /would create ~\/\.helmr\/data/);
   assert.match(logs.join('\n'), /would install helmr CLI globally/);
@@ -126,7 +126,7 @@ test('installer normal path installs, starts Gateway/Hatchery, and opens onboard
 
   assert.equal(code, 0);
   assert.equal(calls.includes('prompt'), false);
-  assert.ok(calls.includes('required:npm install -g helmr'));
+  assert.ok(calls.includes('required:npm i -g helmr'));
   assert.ok(calls.some((call) => call === 'spawn:helmr start'));
   assert.ok(calls.some((call) => call.includes('http://localhost:4000')));
 });

@@ -1087,7 +1087,11 @@ curl -fsSL https://helmr.ai/install.sh | bash -s -- --dry-run
 Direct CLI install:
 
 ```powershell
-npm install -g helmr@latest
+npm i -g helmr@latest
+# Or using pnpm
+pnpm add -g helmr@latest
+
+# Meet your lobster
 helmr onboard
 ```
 
