@@ -126,14 +126,16 @@ export class SelfHealingAgent {
 
   async runCycle(): Promise<HealingReport> {
     const incidents = await this.detect();
-    const outcomes: HealingOutcome[] = [];
 
-    for (const raw of incidents) {
-      const incident = await this.analyze(raw);
-      const outcome = await this.handle(incident);
-      outcomes.push(outcome);
-      if (this.onOutcome) await this.onOutcome(outcome);
-    }
+    // Process incidents concurrently to avoid sequential I/O blocking
+    const outcomes: HealingOutcome[] = await Promise.all(
+      incidents.map(async (raw) => {
+        const incident = await this.analyze(raw);
+        const outcome = await this.handle(incident);
+        if (this.onOutcome) await this.onOutcome(outcome);
+        return outcome;
+      })
+    );
 
     return {
       ranAt: this.now().toISOString(),
