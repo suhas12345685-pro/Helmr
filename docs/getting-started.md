@@ -2,6 +2,41 @@
 
 Helmr is a dynamic self-hosted AI agent platform built around Gateway, Council, Governor, Runtime, skills, memory, channels, and Hatchery onboarding.
 
+## Install
+
+Helmr offers two installation methods:
+
+### 1. One-liners
+
+**macOS and Linux:**
+```bash
+curl -fsSL https://helmr.ai/install.sh | bash
+```
+
+**Windows:**
+```powershell
+powershell -c "irm https://helmr.ai/install.ps1 | iex"
+```
+
+### 2. Package Managers (Beta)
+
+**npm:**
+```bash
+npm i -g helmr@beta
+```
+
+**pnpm:**
+```bash
+pnpm add -g helmr@beta
+```
+
+### Meet your lobster
+
+```bash
+# Meet your lobster
+helmr onboard
+```
+
 ## Key guidance
 
 - Keep Gateway as the control-plane/routing hub.
