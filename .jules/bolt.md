@@ -11,3 +11,7 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+
+## 2026-06-21 - Optimize BudgetLedger sliding window accounting
+**Learning:** Using `Array.prototype.filter` on naturally sorted temporal arrays (like action timestamps) for sliding window metrics causes unnecessary array copies and O(n) performance degradation.
+**Action:** Replace `filter` with an in-place `while` loop using `splice()` to remove expired elements, or a backward `for` loop to count recent items without allocating new arrays, checking limits first.

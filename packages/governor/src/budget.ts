@@ -139,7 +139,12 @@ export class BudgetLedger {
     }
 
     if (this.limits.toolRatePerMin !== undefined) {
-      const recent = state.actionTimesMs.filter((t) => nowMs - t < RATE_WINDOW_MS).length;
+      const cutoff = nowMs - RATE_WINDOW_MS;
+      let recent = 0;
+      for (let i = state.actionTimesMs.length - 1; i >= 0; i--) {
+        if (state.actionTimesMs[i] > cutoff) recent++;
+        else break;
+      }
       if (recent >= this.limits.toolRatePerMin) {
         return { allowed: false, trippedLimit: 'tool_rate', detail: `${recent} actions in last 60s >= ${this.limits.toolRatePerMin}` };
       }
@@ -187,9 +192,22 @@ export class BudgetLedger {
   private markAction(state: JobState): void {
     const nowMs = this.now().getTime();
     state.actions += 1;
-    state.actionTimesMs.push(nowMs);
-    // Keep only the sliding window so the array does not grow unbounded.
-    state.actionTimesMs = state.actionTimesMs.filter((t) => nowMs - t < RATE_WINDOW_MS);
+
+    // Only track sliding window if the limit is configured.
+    if (this.limits.toolRatePerMin !== undefined) {
+      state.actionTimesMs.push(nowMs);
+      const cutoff = nowMs - RATE_WINDOW_MS;
+
+      // Since array is ordered, find the first element inside the window
+      let expiredCount = 0;
+      while (expiredCount < state.actionTimesMs.length && state.actionTimesMs[expiredCount] <= cutoff) {
+        expiredCount++;
+      }
+
+      if (expiredCount > 0) {
+        state.actionTimesMs.splice(0, expiredCount);
+      }
+    }
   }
 
   snapshot(jobId: string): JobBudgetSnapshot {
