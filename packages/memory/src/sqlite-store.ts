@@ -92,6 +92,9 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- Performance: Explicitly index foreign keys to avoid O(N) full table scans
+      -- during heavily looped relational fetches.
+      CREATE INDEX IF NOT EXISTS idx_plans_job_id ON plans(job_id);
 
       CREATE TABLE IF NOT EXISTS receipts (
         id TEXT PRIMARY KEY,
@@ -106,6 +109,8 @@ export class HelmrSQLiteStore {
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
       CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
+      -- Performance: Explicit index on foreign key to prevent O(N) scans.
+      CREATE INDEX IF NOT EXISTS idx_receipts_job_id ON receipts(job_id);
 
       CREATE TABLE IF NOT EXISTS results (
         id TEXT PRIMARY KEY,
@@ -117,6 +122,9 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- Performance: Explicit indices on foreign keys to prevent O(N) scans.
+      CREATE INDEX IF NOT EXISTS idx_results_job_id ON results(job_id);
+      CREATE INDEX IF NOT EXISTS idx_results_receipt_id ON results(receipt_id);
 
       CREATE TABLE IF NOT EXISTS approvals (
         id TEXT PRIMARY KEY,
@@ -128,6 +136,9 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
+      -- Performance: Explicit indices on foreign keys to prevent O(N) scans.
+      CREATE INDEX IF NOT EXISTS idx_approvals_job_id ON approvals(job_id);
+      CREATE INDEX IF NOT EXISTS idx_approvals_receipt_id ON approvals(receipt_id);
 
       CREATE TABLE IF NOT EXISTS swarms (
         id TEXT PRIMARY KEY,
