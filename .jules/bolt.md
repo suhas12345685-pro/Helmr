@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-07-01 - Missing index on SQLite tables for nested resource lookups
+**Learning:** Several SQLite tables (`plans`, `receipts`, `results`, `approvals`) used `FOREIGN KEY` references or frequently queried columns (like `job_id` or `receipt_id`) without corresponding `CREATE INDEX` definitions. When performing nested lookups like `Promise.all(swarms.map(async (swarm) => getPlan(swarm.jobId)))` or similar O(N) repetitive operations across many jobs, the lack of an index causes sequential full table scans, resulting in substantial database performance degradation and slow responses from APIs.
+**Action:** Always pair `FOREIGN KEY` definitions and any frequently lookup-filtered columns (`WHERE job_id=?`) with corresponding `CREATE INDEX` definitions to ensure SQLite handles nested mapping loops performantly.
