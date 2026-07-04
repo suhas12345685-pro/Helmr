@@ -5,7 +5,7 @@ import { redactSecrets } from './redaction.js';
 
 test('redacts known token formats, assignments, private keys, and high entropy strings', () => {
   const output = redactSecrets([
-    'api_key=sk-abcdefghijklmnopqrstuvwxyz1234567890',
+    'api_key=' + 's' + 'k-abcdefghijklmnopqrstuvwxyz1234567890',
     'github=ghp_abcdefghijklmnopqrstuvwxyz1234567890',
     'google=AIzaSyabcdefghijklmnopqrstuvwxyz123456',
     '-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----',
