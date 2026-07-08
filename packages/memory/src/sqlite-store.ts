@@ -92,6 +92,8 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- ⚡ Bolt: Index on FOREIGN KEY avoids O(N) full table scans during joins/lookups, reducing query latency to O(log N)
+      CREATE INDEX IF NOT EXISTS idx_plans_job ON plans(job_id);
 
       CREATE TABLE IF NOT EXISTS receipts (
         id TEXT PRIMARY KEY,
@@ -106,6 +108,8 @@ export class HelmrSQLiteStore {
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
       CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
+      -- ⚡ Bolt: Index on FOREIGN KEY avoids O(N) full table scans during joins/lookups, reducing query latency to O(log N)
+      CREATE INDEX IF NOT EXISTS idx_receipts_job ON receipts(job_id);
 
       CREATE TABLE IF NOT EXISTS results (
         id TEXT PRIMARY KEY,
@@ -117,6 +121,8 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- ⚡ Bolt: Index on FOREIGN KEY avoids O(N) full table scans during joins/lookups, reducing query latency to O(log N)
+      CREATE INDEX IF NOT EXISTS idx_results_job ON results(job_id);
 
       CREATE TABLE IF NOT EXISTS approvals (
         id TEXT PRIMARY KEY,
