@@ -92,6 +92,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- Index to prevent O(N) table scans on foreign keys
       CREATE INDEX IF NOT EXISTS idx_plans_job ON plans(job_id);
 
       CREATE TABLE IF NOT EXISTS receipts (
@@ -106,6 +107,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- Index to prevent O(N) table scans on foreign keys
       CREATE INDEX IF NOT EXISTS idx_receipts_job ON receipts(job_id);
       CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
 
@@ -119,6 +121,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      -- Index to prevent O(N) table scans on foreign keys
       CREATE INDEX IF NOT EXISTS idx_results_job ON results(job_id);
       CREATE INDEX IF NOT EXISTS idx_results_receipt ON results(receipt_id);
 
@@ -131,6 +134,7 @@ export class HelmrSQLiteStore {
         decided_at TEXT,
         created_at TEXT NOT NULL
       );
+      -- Index to prevent O(N) table scans on foreign keys
       CREATE INDEX IF NOT EXISTS idx_approvals_job ON approvals(job_id);
       CREATE INDEX IF NOT EXISTS idx_approvals_receipt ON approvals(receipt_id);
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
