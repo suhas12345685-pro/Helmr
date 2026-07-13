@@ -9,7 +9,7 @@ export const PluginManifestSchema = z.object({
   permissions: z.array(z.string()).default([]),
   configSchema: z.record(z.string(), z.unknown()).default({}),
   secretsSchema: z.record(z.string(), z.unknown()).default({}),
-  approvalPolicy: z.object({ requiredFor: z.array(z.string()).default([]), defaultMode: z.enum(['manual', 'approval-gated', 'disabled']).default('approval-gated') }).prefault({}),
+  approvalPolicy: z.object({ requiredFor: z.array(z.string()).default([]), defaultMode: z.enum(['manual', 'approval-gated', 'disabled']).default('approval-gated') }).default({}),
 });
 export type PluginManifest = z.infer<typeof PluginManifestSchema>;
 export type PluginManifestInput = z.input<typeof PluginManifestSchema>;

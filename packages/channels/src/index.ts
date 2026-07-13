@@ -27,7 +27,7 @@ export const ChannelManifestSchema = z.object({
   status: z.enum(['implemented', 'placeholder']).default('placeholder'),
   configSchema: z.record(z.string(), z.unknown()).default({}),
   authSetup: z.array(z.string()).default([]),
-  rateLimits: z.object({ perMinute: z.number().int().positive().default(60) }).prefault({}),
+  rateLimits: z.object({ perMinute: z.number().int().positive().default(60) }).default({}),
   permissions: z.array(z.string()).default([]),
 });
 export type ChannelManifest = z.infer<typeof ChannelManifestSchema>;

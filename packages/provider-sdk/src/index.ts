@@ -8,7 +8,7 @@ export const ProviderManifestSchema = z.object({
   authMethods: z.array(ProviderAuthMethodSchema).min(1),
   models: z.array(z.object({ id: z.string().min(1), displayName: z.string().optional(), capabilities: z.array(z.string()).default([]), contextWindow: z.number().int().positive().optional(), cost: z.object({ inputPerMTok: z.number().nonnegative(), outputPerMTok: z.number().nonnegative() }).optional() })).default([]),
   routingHints: z.array(z.string()).default([]),
-  failover: z.object({ retryableErrors: z.array(z.string()).default([]), fallbackProviderIds: z.array(z.string()).default([]) }).prefault({}),
+  failover: z.object({ retryableErrors: z.array(z.string()).default([]), fallbackProviderIds: z.array(z.string()).default([]) }).default({}),
 });
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export interface ProviderRuntime { manifest: ProviderManifest; validate(): Promise<{ ok: boolean; detail: string }>; listModels(): Promise<ProviderManifest['models']> }
