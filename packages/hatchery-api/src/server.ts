@@ -48,7 +48,9 @@ function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succ
   return 'queued';
 }
 
-async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: HelmrPlan | null) {
+// ⚡ Bolt Optimization: Accept pre-fetched plan and toolReceipts to avoid blocking sequential awaits.
+// Also removed unused store parameter since toolReceipts are now provided.
+async function toUiJob(job: HelmrStoreJob, plan: HelmrPlan | null, toolReceipts: any[]) {
   return {
     id: job.id,
     status: uiStatus(job.status),
@@ -58,7 +60,7 @@ async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: Helmr
     updatedAt: job.updatedAt,
     planSteps: plan?.steps.map((step) => step.title),
     result: job.finalResult ?? job.lastError,
-    toolReceipts: await toUiToolReceipts(store, job.id),
+    toolReceipts,
   };
 }
 
@@ -210,8 +212,15 @@ export function createHatcheryApp(
   app.get('/api/jobs', async (c) => {
     const rawStatus = c.req.query('status') as import('../../shared/src/index.js').HelmrJob['status'] | undefined;
     const jobs = await store.listJobs({ status: rawStatus, limit: 100 });
+    // ⚡ Bolt Optimization: Use Promise.all inside map to concurrently fetch independent job plan and receipts
     const withPlans = await Promise.all(
-      jobs.map(async (job) => toUiJob(store, job, (await store.getPlan(job.id)) ?? null)),
+      jobs.map(async (job) => {
+        const [plan, toolReceipts] = await Promise.all([
+          store.getPlan(job.id),
+          toUiToolReceipts(store, job.id)
+        ]);
+        return toUiJob(job, plan ?? null, toolReceipts);
+      }),
     );
     return c.json({ jobs: withPlans });
   });
@@ -236,8 +245,12 @@ export function createHatcheryApp(
   app.get('/api/jobs/:id', async (c) => {
     const job = await store.getJob(c.req.param('id'));
     if (!job) return c.json({ error: 'not found' }, 404);
-    const plan = await store.getPlan(job.id);
-    return c.json({ job: await toUiJob(store, job, plan ?? null), plan: plan ?? null });
+    // ⚡ Bolt Optimization: Concurrently fetch plan and toolReceipts
+    const [plan, toolReceipts] = await Promise.all([
+      store.getPlan(job.id),
+      toUiToolReceipts(store, job.id)
+    ]);
+    return c.json({ job: await toUiJob(job, plan ?? null, toolReceipts), plan: plan ?? null });
   });
 
   // GET /api/swarms — research swarms, newest first
@@ -283,8 +296,11 @@ export function createHatcheryApp(
     const pending = await store.getPendingApprovals();
     const approvals = await Promise.all(
       pending.map(async (approval) => {
-        const job = await store.getJob(approval.jobId);
-        const plan = await store.getPlan(approval.jobId);
+        // ⚡ Bolt Optimization: Concurrently fetch job and plan for the approval
+        const [job, plan] = await Promise.all([
+          store.getJob(approval.jobId),
+          store.getPlan(approval.jobId)
+        ]);
         return {
           id: approval.id,
           jobId: approval.jobId,
