@@ -19,8 +19,41 @@ OpenClaw and mature Hermes-style gateways demonstrate strong packaging, channels
 
 ## Install
 
+Helmr provides two primary installation paths: one-liners and package managers.
+
+### 1. One-liners
+
+**macOS / Linux:**
 ```bash
-npm install -g helmr
+curl -fsSL https://helmr.ai/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://helmr.ai/install.ps1 | iex"
+```
+
+### 2. Package Managers
+
+**npm:**
+```bash
+npm i -g helmr
+```
+
+**pnpm:**
+```bash
+pnpm add -g helmr
+```
+
+### Beta
+
+To install the latest beta release and start the onboarding process:
+
+```bash
+# Install Helmr Beta
+npm i -g helmr@beta
+
+# Meet your lobster
 helmr onboard
 ```
 
