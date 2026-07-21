@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-07-21 - [Database Query Concurrency]
+**Learning:** [Replacing sequential awaits in API endpoints with Promise.all reduces round-trip latency significantly for independent queries (e.g. fetching job + plan, swarm + tasks).]
+**Action:** [When building or optimizing API endpoints that aggregate multiple entities, utilize Promise.all to fetch independent database records concurrently rather than sequentially.]
