@@ -11,3 +11,7 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+
+## 2024-05-28 - Optimize parent/child lookup in Hatchery API
+**Learning:** When parallelizing queries for parent and child entities in mapping/formatting routines (e.g. `toUiJob`), pass dependent queries like `store.getPlan` as un-awaited promises. Avoid parallelizing the initial lookup (e.g. `getJob`) with child queries directly using the route ID parameter in the endpoint handler to prevent 500 errors on paths that should 404.
+**Action:** Always verify parent existence before kicking off child lookups in route handlers, but push child promise resolution into mapping functions concurrently with other formatting operations to reduce latency.
