@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-07-26 - Optimize parent-child API endpoint fetches
+**Learning:** When optimizing API endpoints that aggregate entities, simply moving independent dependent queries outside of the parent lookup using `Promise.all` can cause regressions (like 500 errors on 404 paths) if the parent isn't validated first.
+**Action:** Achieve concurrency without sacrificing parent-validation by validating the parent first, then passing un-awaited promises for the child queries down into the mapping functions.
