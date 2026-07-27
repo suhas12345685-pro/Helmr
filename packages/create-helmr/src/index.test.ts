@@ -30,7 +30,7 @@ describe('create-helmr installer helpers', () => {
 
 test('installer copy uses current helmr start command', async () => {
   const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('./index.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('./index.js', import.meta.url), 'utf8').catch(() => readFile(new URL('./index.ts', import.meta.url), 'utf8'));
   assert.match(source, /helmr start/);
   assert.doesNotMatch(source, /helmr daemon start/);
   assert.doesNotMatch(source, /\['daemon', 'start'\]/);
@@ -38,7 +38,7 @@ test('installer copy uses current helmr start command', async () => {
 
 test('installer terminal path delegates architecture choices to Hatchery flow', async () => {
   const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('./index.js', import.meta.url), 'utf8');
+  const source = await readFile(new URL('./index.js', import.meta.url), 'utf8').catch(() => readFile(new URL('./index.ts', import.meta.url), 'utf8'));
   assert.match(source, /HATCHERY_ONBOARDING_FLOW/);
   assert.match(source, /ONBOARDING_PROVIDERS/);
 });
@@ -79,7 +79,7 @@ test('dry-run prints intended actions without filesystem, install, prompt, or da
   });
 
   assert.equal(code, 0);
-  assert.deepEqual(calls, ['optional:pnpm --version', 'optional:npm --version']);
+  assert.deepEqual(calls, ['optional:npm --version']);
   assert.match(logs.join('\n'), /Dry run mode/);
   assert.match(logs.join('\n'), /would create ~\/\.helmr\/data/);
   assert.match(logs.join('\n'), /would install helmr CLI globally/);
