@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2024-07-28 - Add database index on frequently queried foreign key fields
+**Learning:** SQLite does not automatically index foreign key columns. Leaving `job_id` and `receipt_id` unindexed in heavily queried tables (`plans`, `receipts`, `results`, `approvals`) causes expensive O(N) full table scans, particularly during concurrent `Promise.all` lookups.
+**Action:** When creating or modifying SQLite schema definitions, always explicitly pair `FOREIGN KEY` definitions with corresponding `CREATE INDEX` statements to prevent full table scans and improve query latency.
