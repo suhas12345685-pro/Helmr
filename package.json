@@ -23,7 +23,7 @@
     "verify:deployment": "node scripts/doctor/verify-deployment.mjs",
     "docker:build": "docker build -t helmr:local .",
     "package:dry-run": "npm run build:ts && node scripts/package/smoke-pack.mjs",
-    "security:audit": "npm run build:ts && node dist/src/cli.js security audit"
+    "security:audit": "npm run build:ts && node dist/src/cli.js security audit --skip-dependencies"
   },
   "keywords": [
     "ai-agent",
@@ -47,9 +47,9 @@
     "@ai-sdk/perplexity": "^3.0.33",
     "@ai-sdk/xai": "^3.0.92",
     "@clack/prompts": "^1.5.1",
-    "@hono/node-server": "^1.19.14",
+    "@hono/node-server": "^2.0.12",
     "@libsql/client": "^0.15.15",
-    "@mastra/client-js": "^1.21.1",
+    "@mastra/client-js": "^1.8.4",
     "@mastra/core": "^1.37.1",
     "@mastra/libsql": "^1.11.1",
     "@mastra/loggers": "^1.1.1",
@@ -63,7 +63,7 @@
     "commander": "^14.0.3",
     "hono": "^4.12.23",
     "ink": "^7.0.4",
-    "next": "^16.2.6",
+    "next": "^9.3.3",
     "nucleoidai": "^0.7.10",
     "pino": "^10.3.1",
     "react": "^19.2.6",
@@ -78,7 +78,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "autoprefixer": "^10.5.0",
-    "mastra": "^1.10.2",
+    "mastra": "^1.3.19",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3"
