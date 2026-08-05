@@ -111,5 +111,8 @@
     "deploy/",
     "packages/skills/builtin/"
   ],
-  "sideEffects": false
+  "sideEffects": false,
+  "overrides": {
+    "undici": "6.28.0"
+  }
 }
