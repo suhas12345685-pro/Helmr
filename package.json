@@ -47,7 +47,7 @@
     "@ai-sdk/perplexity": "^3.0.33",
     "@ai-sdk/xai": "^3.0.92",
     "@clack/prompts": "^1.5.1",
-    "@hono/node-server": "^1.19.14",
+    "@hono/node-server": "^2.1.0",
     "@libsql/client": "^0.15.15",
     "@mastra/client-js": "^1.21.1",
     "@mastra/core": "^1.37.1",
@@ -70,6 +70,12 @@
     "react-dom": "^19.2.6",
     "ws": "^8.21.0",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "image-size": "1.2.1",
+    "undici": "6.28.0",
+    "uuid": "11.1.1",
+    "@ai-sdk/provider-utils": "5.0.26"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
