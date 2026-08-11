@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+  assert.equal(code, 0);
+  assert.deepEqual(calls, ['optional:pnpm --version', 'optional:npm --version']);
+  assert.match(logs.join('\n'), /Dry run mode/);
+=======
+  assert.equal(code, 0);
+  assert.deepEqual(calls, ['optional:npm --version']);
+  assert.match(logs.join('\n'), /Dry run mode/);
+>>>>>>> REPLACE
