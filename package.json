@@ -47,7 +47,7 @@
     "@ai-sdk/perplexity": "^3.0.33",
     "@ai-sdk/xai": "^3.0.92",
     "@clack/prompts": "^1.5.1",
-    "@hono/node-server": "^1.19.14",
+    "@hono/node-server": "^2.1.0",
     "@libsql/client": "^0.15.15",
     "@mastra/client-js": "^1.21.1",
     "@mastra/core": "^1.37.1",
@@ -58,10 +58,6 @@
     "@mastra/observability": "^1.14.0",
     "@mastra/pg": "^1.11.1",
     "@mastra/server": "^1.37.1",
-  perf/self-healing-probe-concurrent-fetch-6603064595144236735
- 
-    "@types/better-sqlite3": "^7.6.13",
-    main
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
     "hono": "^4.12.23",
@@ -84,7 +80,8 @@
     "mastra": "^1.10.2",
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.19",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "undici": "^6.28.0"
   },
   "repository": {
     "type": "git",
@@ -114,5 +111,12 @@
     "deploy/",
     "packages/skills/builtin/"
   ],
-  "sideEffects": false
+  "sideEffects": false,
+  "overrides": {
+    "undici": "^6.28.0",
+    "@ai-sdk/provider-utils": "^4.0.45",
+    "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@^4.0.45",
+    "uuid": "^11.1.1",
+    "@hono/node-server": "^2.1.0"
+  }
 }
