@@ -283,8 +283,10 @@ export function createHatcheryApp(
     const pending = await store.getPendingApprovals();
     const approvals = await Promise.all(
       pending.map(async (approval) => {
-        const job = await store.getJob(approval.jobId);
-        const plan = await store.getPlan(approval.jobId);
+        const [job, plan] = await Promise.all([
+          store.getJob(approval.jobId),
+          store.getPlan(approval.jobId)
+        ]);
         return {
           id: approval.id,
           jobId: approval.jobId,
