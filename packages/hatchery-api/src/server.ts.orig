@@ -49,7 +49,6 @@ function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succ
 }
 
 async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, planOrPromise?: HelmrPlan | null | Promise<HelmrPlan | undefined | null>) {
-  // Resolve plan and tool receipts concurrently for better performance
   const [plan, toolReceipts] = await Promise.all([
     Promise.resolve(planOrPromise),
     toUiToolReceipts(store, job.id),
@@ -242,7 +241,6 @@ export function createHatcheryApp(
     const job = await store.getJob(c.req.param('id'));
     if (!job) return c.json({ error: 'not found' }, 404);
     const planPromise = store.getPlan(job.id);
-    // Resolve the ui job formatting and the plan concurrently to avoid serial latency
     const [uiJob, plan] = await Promise.all([
       toUiJob(store, job, planPromise),
       planPromise,
@@ -293,7 +291,6 @@ export function createHatcheryApp(
     const pending = await store.getPendingApprovals();
     const approvals = await Promise.all(
       pending.map(async (approval) => {
-        // Fetch job and plan concurrently to optimize approval list loading
         const [job, plan] = await Promise.all([
           store.getJob(approval.jobId),
           store.getPlan(approval.jobId),
