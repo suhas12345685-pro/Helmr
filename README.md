@@ -19,8 +19,41 @@ OpenClaw and mature Hermes-style gateways demonstrate strong packaging, channels
 
 ## Install
 
+Users have two options for installing Helmr: package managers (npm / pnpm) or oneliners.
+
+### 1. Package Managers (npm / pnpm)
+
 ```bash
+# Install Helmr
 npm install -g helmr
+# or using pnpm
+pnpm install -g helmr
+
+# Meet your lobster
+helmr onboard
+```
+
+### 2. Oneliners
+
+**macOS and Linux:**
+```bash
+curl -fsSL https://helmr.ai/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://helmr.ai/install.ps1 | iex"
+```
+
+### Beta
+
+To test the upcoming features:
+
+```bash
+# Install Helmr
+npm i -g helmr@beta
+
+# Meet your lobster
 helmr onboard
 ```
 
