@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-09-03 - N+1 query problem in Hatchery API /api/jobs
+**Learning:** In `packages/hatchery-api/src/server.ts`, the `/api/jobs` endpoint was mapping over an array of jobs using sequential nested async operations (`await store.getPlan(job.id)` followed by `await toUiToolReceipts`). Though disguised in a `Promise.all` for the jobs array, the sequential dependency *within* each map function caused an N+1 query delay inside the loop, where fetching tool receipts had to wait for the independent plan lookup to finish.
+**Action:** Unlink independent async queries in mapping functions. Pass the dependent query (like `getPlan`) as an un-awaited Promise into the mapper (e.g., `toUiJob`), then `await Promise.all` on them internally alongside any other independent DB calls (like `toUiToolReceipts`).
