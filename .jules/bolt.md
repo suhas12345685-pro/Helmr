@@ -11,3 +11,7 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+
+## 2026-09-09 - Parallelize independent sub-queries in mapping functions
+**Learning:** In the Hatchery API (`packages/hatchery-api/src/server.ts`), endpoints like `/api/jobs` and `/api/jobs/:id` were sequentially awaiting `store.getPlan(job.id)` before passing the result to `toUiJob`, which then internally awaited `toUiToolReceipts`. Because plan fetching and tool receipt fetching depend only on the parent `job.id` and not on each other, this creates unnecessary sequential I/O bottlenecks (especially amplified in `map` arrays for list endpoints).
+**Action:** When a formatting function (like `toUiJob`) relies on multiple independent async sub-queries derived from the same parent ID, update the function to accept Promises for its arguments. Start the parent-dependent queries concurrently before the formatting function and use `Promise.all` inside it to parallelize the I/O.
