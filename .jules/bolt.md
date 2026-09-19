@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-09-19 - Concurrent database lookups in hatchery API endpoints
+**Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/hatchery-api/src/server.ts`, several API endpoints were sequentially awaiting dependent data rather than allowing the asynchronous data access to be parallelized (for example by resolving `toUiJob` with promises).
+**Action:** Replace sequential `await` of independent asynchronous tasks with `Promise.all` allowing them to run concurrently, and ensure helper functions can accept Promises to not force the event loop to await them before calling the helper.
