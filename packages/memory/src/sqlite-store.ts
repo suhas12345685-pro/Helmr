@@ -92,6 +92,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      CREATE INDEX IF NOT EXISTS idx_plans_job ON plans(job_id);
 
       CREATE TABLE IF NOT EXISTS receipts (
         id TEXT PRIMARY KEY,
@@ -105,6 +106,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      CREATE INDEX IF NOT EXISTS idx_receipts_job ON receipts(job_id);
       CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
 
       CREATE TABLE IF NOT EXISTS results (
@@ -117,6 +119,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      CREATE INDEX IF NOT EXISTS idx_results_job ON results(job_id);
 
       CREATE TABLE IF NOT EXISTS approvals (
         id TEXT PRIMARY KEY,
@@ -127,6 +130,7 @@ export class HelmrSQLiteStore {
         decided_at TEXT,
         created_at TEXT NOT NULL
       );
+      CREATE INDEX IF NOT EXISTS idx_approvals_job ON approvals(job_id);
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
 
       CREATE TABLE IF NOT EXISTS swarms (
