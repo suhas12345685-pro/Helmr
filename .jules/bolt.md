@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2025-09-28 - Missing SQLite indexes
+**Learning:** Tables with foreign keys (e.g., `plans`, `receipts`, `results`) lacked corresponding indexes on `job_id`, and other frequently queried columns like `receipt_id` (in `results`) and `job_id` (in `approvals`) were unindexed. Because these tables are frequently queried inside `Promise.all` loops (e.g., in `listJobs` and `listReceiptsForJob` via `packages/hatchery-api/src/server.ts`), missing indexes caused O(N) full table scans on every loop iteration, leading to significant database latency.
+**Action:** Always explicitly pair `FOREIGN KEY` definitions with corresponding `CREATE INDEX` statements, and index columns that are used to filter results (such as `job_id` and `receipt_id`) to prevent O(N) full table scans, especially for tables heavily queried in `Promise.all` loops.
