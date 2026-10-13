@@ -11,3 +11,6 @@
 ## 2026-06-03 - Optimize self-healing probe detect method
 **Learning:** Sequential `await` calls on independent async operations (like database queries) create unnecessary latency. In `packages/scheduler/src/self-healing.ts`, the `detect` method was sequentially querying jobs for each `ACTIVE_STATUSES` and then for `failed` jobs.
 **Action:** Replace sequential loops of async operations with `Promise.all` to fetch data concurrently when the operations are independent, and use a test bench to quantify the performance gain.
+## 2026-10-13 - Concurrent API fetching pattern
+**Learning:** When building API endpoints that aggregate entities, sequential `await`s on independent database calls (like `getJob` and `getPlan`) add unnecessary latency. However, parallelizing the *initial* parent lookup (e.g., checking if an entity exists for a route parameter) with child queries can cause 500 errors on 404 paths.
+**Action:** Verify the parent first for single-entity routes, then pass dependent queries as un-awaited promises to formatting functions like `toUiJob` to resolve them concurrently with other operations (like fetching receipts). For list endpoints, use `Promise.all` to fetch related entities in parallel.
