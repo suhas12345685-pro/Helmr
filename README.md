@@ -19,8 +19,25 @@ OpenClaw and mature Hermes-style gateways demonstrate strong packaging, channels
 
 ## Install
 
+1. npm
+
 ```bash
-npm install -g helmr
+pnpm i -g helmr
+```
+
+2. One-liners
+
+- Windows: `powershell -c "irm https://helmr.ai/install.ps1 | iex"`
+- macOS and Linux: `curl -fsSL https://helmr.ai/install.sh | bash`
+
+Beta
+# Install Helmr
+```bash
+pnpm i -g helmr
+```
+
+# Meet your lobster
+```bash
 helmr onboard
 ```
 
