@@ -48,7 +48,13 @@ function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succ
   return 'queued';
 }
 
-async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: HelmrPlan | null) {
+async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, planPromise?: Promise<HelmrPlan | null | undefined> | HelmrPlan | null) {
+  // ⚡ Bolt: Fetch dependent data concurrently to reduce API latency
+  const [plan, toolReceipts] = await Promise.all([
+    Promise.resolve(planPromise),
+    toUiToolReceipts(store, job.id)
+  ]);
+
   return {
     id: job.id,
     status: uiStatus(job.status),
@@ -58,7 +64,7 @@ async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: Helmr
     updatedAt: job.updatedAt,
     planSteps: plan?.steps.map((step) => step.title),
     result: job.finalResult ?? job.lastError,
-    toolReceipts: await toUiToolReceipts(store, job.id),
+    toolReceipts,
   };
 }
 
@@ -211,7 +217,7 @@ export function createHatcheryApp(
     const rawStatus = c.req.query('status') as import('../../shared/src/index.js').HelmrJob['status'] | undefined;
     const jobs = await store.listJobs({ status: rawStatus, limit: 100 });
     const withPlans = await Promise.all(
-      jobs.map(async (job) => toUiJob(store, job, (await store.getPlan(job.id)) ?? null)),
+      jobs.map((job) => toUiJob(store, job, store.getPlan(job.id))),
     );
     return c.json({ jobs: withPlans });
   });
@@ -236,8 +242,8 @@ export function createHatcheryApp(
   app.get('/api/jobs/:id', async (c) => {
     const job = await store.getJob(c.req.param('id'));
     if (!job) return c.json({ error: 'not found' }, 404);
-    const plan = await store.getPlan(job.id);
-    return c.json({ job: await toUiJob(store, job, plan ?? null), plan: plan ?? null });
+    const planPromise = store.getPlan(job.id);
+    return c.json({ job: await toUiJob(store, job, planPromise), plan: (await planPromise) ?? null });
   });
 
   // GET /api/swarms — research swarms, newest first
@@ -283,8 +289,11 @@ export function createHatcheryApp(
     const pending = await store.getPendingApprovals();
     const approvals = await Promise.all(
       pending.map(async (approval) => {
-        const job = await store.getJob(approval.jobId);
-        const plan = await store.getPlan(approval.jobId);
+        // ⚡ Bolt: Fetch job and plan concurrently to reduce latency
+        const [job, plan] = await Promise.all([
+          store.getJob(approval.jobId),
+          store.getPlan(approval.jobId)
+        ]);
         return {
           id: approval.id,
           jobId: approval.jobId,
