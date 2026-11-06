@@ -85,6 +85,7 @@ export class HelmrSQLiteStore {
       CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id);
       CREATE INDEX IF NOT EXISTS idx_jobs_priority_created ON jobs(priority DESC, created_at ASC);
 
+      -- ⚡ Bolt: Add explicit index on foreign keys to optimize DB lookups
       CREATE TABLE IF NOT EXISTS plans (
         id TEXT PRIMARY KEY,
         job_id TEXT NOT NULL,
@@ -92,6 +93,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      CREATE INDEX IF NOT EXISTS idx_plans_job ON plans(job_id);
 
       CREATE TABLE IF NOT EXISTS receipts (
         id TEXT PRIMARY KEY,
@@ -106,6 +108,7 @@ export class HelmrSQLiteStore {
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
       CREATE INDEX IF NOT EXISTS idx_receipts_approval ON receipts(approval);
+      CREATE INDEX IF NOT EXISTS idx_receipts_job ON receipts(job_id);
 
       CREATE TABLE IF NOT EXISTS results (
         id TEXT PRIMARY KEY,
@@ -117,6 +120,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL,
         FOREIGN KEY(job_id) REFERENCES jobs(id)
       );
+      CREATE INDEX IF NOT EXISTS idx_results_receipt ON results(receipt_id);
 
       CREATE TABLE IF NOT EXISTS approvals (
         id TEXT PRIMARY KEY,
@@ -128,6 +132,7 @@ export class HelmrSQLiteStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_approvals_decision ON approvals(decision);
+      CREATE INDEX IF NOT EXISTS idx_approvals_job ON approvals(job_id);
 
       CREATE TABLE IF NOT EXISTS swarms (
         id TEXT PRIMARY KEY,
