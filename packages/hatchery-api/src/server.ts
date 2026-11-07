@@ -48,7 +48,12 @@ function uiStatus(status: HelmrStoreJob['status']): 'queued' | 'running' | 'succ
   return 'queued';
 }
 
-async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: HelmrPlan | null) {
+async function toUiJob(
+  store: HelmrSQLiteStore,
+  job: HelmrStoreJob,
+  plan?: HelmrPlan | null,
+  toolReceipts?: Array<{ tool: string; input: string; output: string; timestamp: string }>
+) {
   return {
     id: job.id,
     status: uiStatus(job.status),
@@ -58,10 +63,11 @@ async function toUiJob(store: HelmrSQLiteStore, job: HelmrStoreJob, plan?: Helmr
     updatedAt: job.updatedAt,
     planSteps: plan?.steps.map((step) => step.title),
     result: job.finalResult ?? job.lastError,
-    toolReceipts: await toUiToolReceipts(store, job.id),
+    toolReceipts: toolReceipts ?? await toUiToolReceipts(store, job.id),
   };
 }
 
+// ⚡ Bolt: Fetch tool receipts directly to avoid N+1 sequential queries when mapping over jobs
 async function toUiToolReceipts(store: HelmrSQLiteStore, jobId: string) {
   const receipts = await store.listReceiptsForJob(jobId);
   const withResults = await Promise.all(
@@ -210,8 +216,15 @@ export function createHatcheryApp(
   app.get('/api/jobs', async (c) => {
     const rawStatus = c.req.query('status') as import('../../shared/src/index.js').HelmrJob['status'] | undefined;
     const jobs = await store.listJobs({ status: rawStatus, limit: 100 });
+    // ⚡ Bolt: Run independent queries for all jobs concurrently
     const withPlans = await Promise.all(
-      jobs.map(async (job) => toUiJob(store, job, (await store.getPlan(job.id)) ?? null)),
+      jobs.map(async (job) => {
+        const [plan, toolReceipts] = await Promise.all([
+          store.getPlan(job.id).then(p => p ?? null),
+          toUiToolReceipts(store, job.id)
+        ]);
+        return toUiJob(store, job, plan, toolReceipts);
+      })
     );
     return c.json({ jobs: withPlans });
   });
@@ -236,8 +249,12 @@ export function createHatcheryApp(
   app.get('/api/jobs/:id', async (c) => {
     const job = await store.getJob(c.req.param('id'));
     if (!job) return c.json({ error: 'not found' }, 404);
-    const plan = await store.getPlan(job.id);
-    return c.json({ job: await toUiJob(store, job, plan ?? null), plan: plan ?? null });
+    // ⚡ Bolt: Fetch plan and tool receipts concurrently for the single job
+    const [plan, toolReceipts] = await Promise.all([
+      store.getPlan(job.id).then(p => p ?? null),
+      toUiToolReceipts(store, job.id)
+    ]);
+    return c.json({ job: await toUiJob(store, job, plan, toolReceipts), plan });
   });
 
   // GET /api/swarms — research swarms, newest first
