@@ -175,12 +175,12 @@ export async function runInstaller(args = process.argv.slice(2), deps = getDefau
     return 1;
   }
 
-  // Prefer npm, which ships with Node and is therefore always present; only probe for
-  // pnpm as a fallback when npm is unavailable.
-  const npmOk = checkNpm(deps);
-  const pnpmOk = npmOk ? false : checkPnpm(deps);
-  const pkgMgrOk = npmOk || pnpmOk;
-  const pkgMgr = npmOk ? 'npm' : 'pnpm';
+  // Prefer pnpm, which is recommended; only probe for
+  // npm as a fallback when pnpm is unavailable.
+  const pnpmOk = checkPnpm(deps);
+  const npmOk = pnpmOk ? false : checkNpm(deps);
+  const pkgMgrOk = pnpmOk || npmOk;
+  const pkgMgr = pnpmOk ? 'pnpm' : 'npm';
 
   check(`${pkgMgr} available`, pkgMgrOk, undefined, deps);
   if (!pkgMgrOk) {
